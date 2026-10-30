@@ -1,0 +1,36 @@
+# LightPanel 自身的最小部署。
+# 使用： docker compose -f deploy/docker-compose.yml up -d
+
+services:
+  lightpanel:
+    image: lightpanel:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: lightpanel
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      # 公网或不可信网络务必开启鉴权
+      LIGHTPANEL_SECURITY__ENABLED: "false"
+      # LIGHTPANEL_SECURITY__API_TOKEN: "change-me"
+      LIGHTPANEL_SERVER__PORT: "9000"
+      LIGHTPANEL_METRICS__CACHE_TTL: "2"
+      LIGHTPANEL_CATALOG__PATH: "/data/catalog.yaml"
+      LIGHTPANEL_CATALOG__EXAMPLE_FILE: "/app/data-examples/catalog.example.yaml"
+      LIGHTPANEL_COMMANDS__EXTRA_FILE: "/data/commands.yaml"
+      # 首次启动若 /data 为空，自动写出厂的自定义命令示例
+      LIGHTPANEL_COMMANDS__EXAMPLE_FILE: "/app/data-examples/commands.yaml"
+      LIGHTPANEL_COMPOSE__SEARCH_PATHS: '["/opt","/srv","/data"]'
+      LIGHTPANEL_LOGGING__LEVEL: "INFO"
+    volumes:
+      # 只读方式不足以控制容器；控制能力来自 socket，故按需决定是否 ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      # 软件目录与自定义命令持久化
+      - ./data:/data
+      # 让面板能发现宿主机上的 compose 项目（可按需增删）
+      - /opt:/opt:ro
+    # 进程需要访问 docker socket：确保容器内用户的 gid 与宿主机 docker 组一致，
+    # 或以 root 运行（见 deploy/README.md 的安全说明）
+    # user: "0:0"

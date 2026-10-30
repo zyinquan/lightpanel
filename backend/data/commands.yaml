@@ -1,0 +1,55 @@
+# 自定义命令示例
+# 每条命令都会在 UI 上生成一个按钮；argv 支持占位符：
+#   {id} {name} {image} {project} {service} {working_dir} {config_file}
+# 安全策略：只有 allowed_binaries 中的可执行文件可以运行，且不允许 shell 元字符。
+commands:
+  - id: container.logs.follow
+    name: 查看最近日志
+    target: container
+    kind: shell
+    argv: ["docker", "logs", "--tail", "100", "{name}"]
+    description: 读取指定容器最近 100 行日志
+    confirm: false
+    danger: false
+    timeout: 30
+
+  - id: container.exec.sh
+    name: 进入 Shell
+    target: container
+    kind: shell
+    argv: ["docker", "exec", "{name}", "sh", "-c", "echo connected"]
+    description: 演示：在容器内执行一条命令
+    confirm: true
+    danger: false
+    timeout: 60
+
+  - id: stack.update
+    name: 拉取镜像并重建
+    target: stack
+    kind: shell
+    argv: ["docker", "compose", "-p", "{project}", "up", "-d", "--pull", "always"]
+    description: 拉取最新镜像后重建整个 Compose 项目
+    confirm: true
+    danger: true
+    timeout: 900
+    working_dir: null
+
+  - id: stack.ps
+    name: 查看项目进程
+    target: stack
+    kind: shell
+    argv: ["docker", "compose", "-p", "{project}", "ps"]
+    description: 列出 Compose 项目内所有容器
+    confirm: false
+    danger: false
+    timeout: 60
+
+  - id: system.prune
+    name: 清理无用镜像
+    target: system
+    kind: shell
+    argv: ["docker", "image", "prune", "-f"]
+    description: 删除悬空镜像释放磁盘
+    confirm: true
+    danger: true
+    timeout: 300

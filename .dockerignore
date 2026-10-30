@@ -1,0 +1,27 @@
+.git
+.github
+# 文档不进镜像，但 pip 需要仓库根 README（backend/pyproject.toml: readme = "../README.md"）
+*.md
+!README.md
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+**/.venv
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.coverage
+htmlcov
+**/node_modules
+frontend/dist
+# 运行期数据不入镜像；示例目录与出厂自定义命令需要保留以支持首次启动播种
+**/data/*.yaml
+!backend/data/*.example.yaml
+!backend/data/commands.yaml
+*.local.yaml
+*.log
+.env
+.env.local
+.vscode
+.idea
+.DS_Store

@@ -1,0 +1,93 @@
+# 软件目录示例（首次启动时会被复制为 catalog.yaml）
+# 字段说明：
+#   id     唯一标识，省略时由 name 生成
+#   tags   软件标签，用于分组与筛选
+#   icon   单个 emoji 或图标名称
+entries:
+  - id: lightpanel
+    name: LightPanel
+    url: http://localhost:9000
+    description: 本面板自身
+    icon: 🛰️
+    color: "#4f8cff"
+    category: 运维
+    tags: [面板, 自托管, 运维]
+    enabled: true
+    order: 0
+
+  - id: portainer
+    name: Portainer
+    url: http://localhost:9443
+    description: Docker 图形化管理
+    icon: 🐳
+    color: "#13b8d4"
+    category: 运维
+    tags: [Docker, 容器, 运维]
+    enabled: true
+    order: 1
+
+  - id: grafana
+    name: Grafana
+    url: http://localhost:3000
+    description: 指标可视化
+    icon: 📈
+    color: "#f46800"
+    category: 监控
+    tags: [监控, 可视化, 运维]
+    enabled: true
+    order: 2
+
+  - id: prometheus
+    name: Prometheus
+    url: http://localhost:9090
+    description: 时序指标采集
+    icon: 🔥
+    color: "#e6522c"
+    category: 监控
+    tags: [监控, 时序, 运维]
+    enabled: true
+    order: 3
+
+  - id: jellyfin
+    name: Jellyfin
+    url: http://localhost:8096
+    description: 自建影音媒体库
+    icon: 🎬
+    color: "#00a4dc"
+    category: 媒体
+    tags: [媒体, 家庭实验室]
+    enabled: true
+    order: 4
+
+  - id: immich
+    name: Immich
+    url: http://localhost:2283
+    description: 自建照片备份
+    icon: 🖼️
+    color: "#4caf50"
+    category: 媒体
+    tags: [媒体, 备份, 家庭实验室]
+    enabled: true
+    order: 5
+
+  - id: vaultwarden
+    name: Vaultwarden
+    url: http://localhost:8222
+    description: 密码库自托管
+    icon: 🔐
+    color: "#175ddc"
+    category: 安全
+    tags: [安全, 备份]
+    enabled: true
+    order: 6
+
+  - id: home-assistant
+    name: Home Assistant
+    url: http://localhost:8123
+    description: 智能家居中枢
+    icon: 🏠
+    color: "#41bdf5"
+    category: 智能家居
+    tags: [智能家居, 家庭实验室]
+    enabled: true
+    order: 7

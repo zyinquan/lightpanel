@@ -1,0 +1,1 @@
+"""Software catalog persistence adapters."""

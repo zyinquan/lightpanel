@@ -1,0 +1,72 @@
+# LightPanel 示例配置
+# 复制为 config.yaml 后按需修改；所有项都可用环境变量覆盖，例如：
+#   LIGHTPANEL_SERVER__PORT=8080
+#   LIGHTPANEL_DOCKER__SOCKET=/run/docker.sock
+#   LIGHTPANEL_SECURITY__ENABLED=true
+
+env: dev
+
+server:
+  host: 0.0.0.0
+  port: 9000
+  api_prefix: /api
+  docs: true
+  cors_origins:
+    - "*"
+
+security:
+  # 面板可以控制容器，公网部署务必开启
+  enabled: false
+  api_token: ""
+  token_file: ""
+  header_name: X-LightPanel-Token
+
+metrics:
+  provider: psutil        # psutil | fake
+  cache_ttl: 2.0          # 快照缓存秒数，避免前端高频轮询打爆 psutil
+  history_size: 60        # 保留多少个采样点用于绘制趋势图
+  disk_mounts: []         # 为空表示展示全部挂载点
+  network_interfaces: []  # 为空表示统计全部网卡
+
+docker:
+  enabled: true
+  mode: auto              # auto | api | fake
+  socket: /var/run/docker.sock
+  host: ""                # 例如 tcp://127.0.0.1:2375，优先于 socket
+  api_version: v1.44
+  timeout: 10.0
+  include_stopped: true
+
+compose:
+  enabled: true
+  binary: docker
+  subcommand: compose     # 使用 docker-compose 时改为 "" 并把 binary 设为 docker-compose
+  search_paths:
+    - /opt
+    - /srv
+    - /home
+    - /data
+  max_depth: 3
+  timeout: 600.0
+
+catalog:
+  provider: yaml          # yaml | memory
+  path: data/catalog.yaml
+  # 首次启动若 path 不存在，从这个文件复制一份；容器部署指向 /app/data-examples/catalog.example.yaml
+  example_file: ""
+
+commands:
+  extra_file: data/commands.yaml
+  # 首次启动若 extra_file 不存在，从这个文件复制一份；容器部署指向 /app/data-examples/commands.yaml
+  example_file: ""
+  include_builtin: true
+  allow_ad_hoc_argv: true
+  allowed_binaries:
+    - docker
+    - docker-compose
+  default_timeout: 120.0
+  max_timeout: 1800.0
+
+logging:
+  level: INFO
+  format: plain      # plain | json
