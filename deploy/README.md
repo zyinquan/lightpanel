@@ -123,35 +123,43 @@ docker compose -f deploy/docker-compose.yml up -d --build
 - 只想验证面板本身时，也可以不带任何挂载先跑：
   `docker run -d -p 9000:9000 -v lp_data:/data lightpanel:latest`
 
-## 方式二：直接跑在宿主机
+## 方式二：直接跑在宿主机（单机推荐）
+
+一个进程，不发容器镜像，**也不需要 `lightpanel-agent`**：面板进程与 docker daemon 看的是同一份文件系统，
+compose 里的 `./src:/app` 会被解析成真实路径；psutil 读到的是整机指标，网络、磁盘都是全量。
 
 ```bash
-cd frontend && npm install && npm run build && cd ..
-cd backend && pip install .
-cp ../config.example.yaml /etc/lightpanel/config.yaml
-cp data/catalog.example.yaml data/catalog.yaml
-python -m lightpanel -c /etc/lightpanel/config.yaml
+sudo ./deploy/install-host.sh
+```
+
+脚本做的事：建 `backend/.venv` → 装依赖（默认阿里云源）→ `frontend/dist` 缺失时用一次性
+node 容器构建 → 生成 `config.local.yaml`（随机 token、600 权限）→ 安装并启动 `lightpanel.service`。
+结束时打印令牌与监听端口，浏览器打开 `http://<本机IP>:9001` 用令牌登录。
+
+常用覆盖项：
+
+| 变量 | 默认 | 说明 |
+| --- | --- | --- |
+| `PORT` | `9001` | 监听端口 |
+| `RUN_USER` | sudo 之前的用户 | 服务运行身份 |
+| `APP_DIR` | 脚本所在仓库根目录 | 项目路径 |
+| `PYPI_INDEX` | 阿里云 | **清华源对 `setuptools` 返回 403**，照抄会装不上 |
+
+改完配置：`sudo systemctl restart lightpanel`；日志：`journalctl -u lightpanel -f`。
+单元模板在 `deploy/lightpanel.service.in`，`@APP_DIR@` / `@RUN_USER@` 由脚本替换。
+
+不用脚本、手动装（等价操作）：
+
+```bash
+cd backend && python3 -m venv .venv && .venv/bin/pip install -e .
+cp ../config.example.yaml ../config.local.yaml    # 改 port / security.api_token
+.venv/bin/lightpanel -c ../config.local.yaml
 ```
 
 后端发现 `frontend/dist/index.html` 会自动托管 SPA，无需额外的 Web 服务器。
 
-建议用 systemd 托管，示例单元：
-
-```ini
-[Unit]
-Description=LightPanel
-After=network.target docker.service
-
-[Service]
-Type=simple
-WorkingDirectory=/opt/lightpanel/backend
-ExecStart=/opt/lightpanel/backend/.venv/bin/lightpanel -c /etc/lightpanel/config.yaml
-Restart=on-failure
-Environment=LIGHTPANEL_SECURITY__ENABLED=true
-
-[Install]
-WantedBy=multi-user.target
-```
+> 这套方式下 `compose.runner` 保持默认的 `local` 即可。`agent` 模式是为「面板跑在容器里」
+> 准备的补偿手段，宿主机直跑用它反而是多养一个进程。
 
 ## 反向代理（Nginx + HTTPS）
 
@@ -250,3 +258,6 @@ docker compose -f deploy/docker-compose.yml up -d --build
 | 命令超时 | 调大 `compose.timeout` 或该命令的 `timeout`（上限 `commands.max_timeout`） |
 | `compose up` 卡在 `Container ... Creating` | 宿主机目录挂载未被允许（Docker Desktop 的文件共享 / SELinux 标签），或挂载路径不存在 |
 | 刷新子页面 404 | 后端会自动把无扩展名路径回退到 `index.html`；若仍是 404，检查 `/app/frontend/dist/index.html` 是否存在 |
+| 所有接口 401 `Invalid or missing API token` | 开了 `security.enabled` 但没登录。页面会停在令牌输入框；令牌在 `config.local.yaml` 的 `security.api_token`（或 `token_file`）里。直接调接口需带 `X-LightPanel-Token` 头 |
+| 宿主机直跑时报 `Address already in use` | 9000 上可能还跑着容器版：`docker compose -f deploy/docker-compose.yml down`，或把 `server.port` 换一个 |
+| systemd 起来就退出 | `journalctl -u lightpanel -n 50`。常见原因：`WorkingDirectory` 不对导致 `data/catalog.yaml` 相对路径失效、venv 里没装包、`config.local.yaml` 权限过严（服务用户读不到） |

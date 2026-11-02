@@ -1,0 +1,22 @@
+[Unit]
+Description=LightPanel - lightweight self-hosted server panel
+Documentation=https://github.com/zyinquan/lightpanel
+After=network-online.target docker.service
+Wants=network-online.target
+# 面板通过 docker.sock 工作，docker 不在就没意义
+Requires=docker.service
+
+[Service]
+Type=simple
+User=@RUN_USER@
+Group=@RUN_USER@
+# compose 的 search_paths 与 catalog 的相对路径都以这个目录为基准
+WorkingDirectory=@APP_DIR@
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@APP_DIR@/backend/.venv/bin/lightpanel -c @APP_DIR@/config.local.yaml
+Restart=always
+RestartSec=3
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
