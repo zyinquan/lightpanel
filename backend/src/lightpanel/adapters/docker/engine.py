@@ -20,6 +20,39 @@ from ...domain.models import ContainerInfo, ContainerState, PortBinding
 # 别的 Docker API 端点（例如 "../../version" 之类）。
 _SAFE_REFERENCE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 
+_SOCKET_PERMISSION_HINT = (
+    "面板进程读不到 docker.sock：容器内用户与宿主机 docker 组的 GID 不一致。"
+    "用 DOCKER_GID=$(stat -c '%g' /var/run/docker.sock) docker compose up -d 重启面板，"
+    '或以 user: "0:0" 运行。'
+)
+
+
+def _is_permission_denied(exc: BaseException) -> bool:
+    """沿 ``__cause__`` / ``__context__`` 找 ``PermissionError``。
+
+    httpx 会把 socket 的 EACCES 包成 ``ConnectError``，只看最外层类型会漏掉，
+    于是 "socket 不可读" 被误报成 "daemon 没启动" —— 两者修法完全不同。
+    """
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, PermissionError):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
+def _unreachable(exc: Exception) -> EngineUnavailableError:
+    """把连接失败翻译成带修复提示的错误。"""
+    if _is_permission_denied(exc):
+        return EngineUnavailableError(
+            "读不到 Docker socket（权限不足）",
+            reason=str(exc),
+            hint=_SOCKET_PERMISSION_HINT,
+        )
+    return EngineUnavailableError("Docker daemon unreachable", reason=str(exc))
+
 
 def _safe_reference(value: str) -> str:
     reference = str(value or "").strip()
@@ -136,7 +169,7 @@ class DockerApiContainerEngine:
                 params={"stdout": "1", "stderr": "1", "tail": str(tail)},
             )
         except (httpx.HTTPError, OSError) as exc:
-            raise EngineUnavailableError("Docker daemon unreachable", reason=str(exc)) from exc
+            raise _unreachable(exc) from exc
         if response.status_code == 404:
             raise NotFoundError(f"Container not found: {container_id}")
         if response.status_code >= 400:
@@ -151,7 +184,7 @@ class DockerApiContainerEngine:
         try:
             response = await client.get(path, params=params)
         except (httpx.HTTPError, OSError) as exc:
-            raise EngineUnavailableError("Docker daemon unreachable", reason=str(exc)) from exc
+            raise _unreachable(exc) from exc
         return self._unwrap(response, path)
 
     async def _post(self, path: str, params: dict[str, str] | None = None) -> None:
@@ -159,7 +192,7 @@ class DockerApiContainerEngine:
         try:
             response = await client.post(path, params=params)
         except (httpx.HTTPError, OSError) as exc:
-            raise EngineUnavailableError("Docker daemon unreachable", reason=str(exc)) from exc
+            raise _unreachable(exc) from exc
         self._unwrap(response, path)
 
     async def _delete(self, path: str, params: dict[str, str] | None = None) -> None:
@@ -167,7 +200,7 @@ class DockerApiContainerEngine:
         try:
             response = await client.delete(path, params=params)
         except (httpx.HTTPError, OSError) as exc:
-            raise EngineUnavailableError("Docker daemon unreachable", reason=str(exc)) from exc
+            raise _unreachable(exc) from exc
         self._unwrap(response, path)
 
     @staticmethod

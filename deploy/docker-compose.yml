@@ -40,6 +40,9 @@ services:
       - ./data:/data
       # 让面板能发现宿主机上的 compose 项目（可按需增删）
       - /opt:/opt:ro
-    # 进程需要访问 docker socket：确保容器内用户的 gid 与宿主机 docker 组一致，
-    # 或以 root 运行（见 deploy/README.md 的安全说明）
-    # user: "0:0"
+    # 进程需要访问 docker socket：容器内用户必须与宿主机 docker 组的 GID 一致。
+    # 取 GID 后再启动（默认 999 只适用多数发行版）：
+    #   DOCKER_GID=$(stat -c '%g' /var/run/docker.sock) docker compose -f deploy/docker-compose.yml up -d
+    # 若 socket 是 root:root（例如部分单板机 / rootless 配置），group_add 无效，改用 user: "0:0"。
+    group_add:
+      - "${DOCKER_GID:-999}"

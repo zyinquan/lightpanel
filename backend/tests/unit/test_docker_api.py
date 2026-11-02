@@ -8,6 +8,7 @@ import pytest
 from lightpanel.adapters.docker.engine import (
     DockerApiContainerEngine,
     _decode_log_stream,
+    _is_permission_denied,
 )
 from lightpanel.config import DockerConfig
 from lightpanel.domain.errors import EngineUnavailableError, NotFoundError
@@ -201,3 +202,38 @@ async def test_get_container_tolerates_non_object_body():
     engine = engine_for(lambda request: httpx.Response(200, content=b""))
     with pytest.raises(NotFoundError):
         await engine.get_container("web")
+
+
+async def test_socket_permission_denied_is_not_reported_as_unreachable():
+    """socket 不可读与 daemon 没起来是两回事，修法完全不同。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise PermissionError(13, "Permission denied")
+
+    engine = engine_for(handler)
+    with pytest.raises(EngineUnavailableError) as caught:
+        await engine.list_containers()
+    error = caught.value
+    assert "socket" in error.message
+    assert "GID" in error.details.get("hint", "")
+
+
+def test_permission_denied_is_found_behind_httpx_wrapper():
+    # httpx 会把 EACCES 包进 ConnectError，只看最外层类型会漏掉
+    try:
+        try:
+            raise PermissionError(13, "Permission denied")
+        except PermissionError as exc:
+            raise httpx.ConnectError("All connection attempts failed") from exc
+    except httpx.ConnectError as wrapped:
+        assert _is_permission_denied(wrapped) is True
+
+
+async def test_generic_connection_failure_stays_unreachable():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise ConnectionRefusedError(111, "Connection refused")
+
+    engine = engine_for(handler)
+    with pytest.raises(EngineUnavailableError) as caught:
+        await engine.list_containers()
+    assert caught.value.message == "Docker daemon unreachable"
