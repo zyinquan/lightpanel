@@ -125,7 +125,15 @@ sed -e "s|@APP_DIR@|$APP_DIR|g" -e "s|@RUN_USER@|$RUN_USER|g" \
   "$APP_DIR/deploy/lightpanel.service.in" > /etc/systemd/system/lightpanel.service
 systemctl daemon-reload
 systemctl enable --now lightpanel
-sleep 3
+
+# 启动到监听之间有 3~6 秒（加载配置 + 挂 SPA），固定 sleep 会误报"未监听"
+i=0
+while [ "$i" -lt 20 ]; do
+  ss -tln 2>/dev/null | grep -q ":$PORT " && break
+  systemctl is-active --quiet lightpanel || break
+  i=$((i + 1))
+  sleep 1
+done
 
 say "⑥ 结果"
 systemctl --no-pager --full status lightpanel | head -12 || true
