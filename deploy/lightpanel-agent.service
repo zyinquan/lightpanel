@@ -1,7 +1,8 @@
 # LightPanel 宿主机代理（systemd 单元）
 #
 # 用途：面板以容器方式部署时，容器里做不对两件事——
-#   1. psutil 只能看到容器 / Docker 虚拟机，看不到宿主机；
+#   1. 指标口径不完整：Linux 容器里 CPU / 内存能读到整机（内核不隔离 /proc），
+#      但网络只算本容器、磁盘只含挂进容器的目录；
 #   2. compose 解析 ./src:/app 这类相对挂载时用的是容器内文件系统，
 #      宿主机 docker 只能建空目录顶上，源码没挂上还不报错。
 # 把本代理跑在宿主机上，面板配置 metrics.remote_url 与 compose.runner=agent 即可。
