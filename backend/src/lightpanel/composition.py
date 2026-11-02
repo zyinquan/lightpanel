@@ -25,7 +25,7 @@ from .adapters.metrics.fallback_provider import FallbackMetricsProvider
 from .adapters.metrics.psutil_provider import PsutilMetricsProvider
 from .adapters.metrics.remote_provider import RemoteMetricsProvider
 from .api.security import TokenAuth
-from .config import AppConfig
+from .config import AppConfig, ComposeConfig
 from .domain.ports import CatalogRepository, CommandExecutor, ContainerEngine, MetricsProvider
 from .services.builtin_commands import all_builtin_commands
 from .services.catalog_service import CatalogService
@@ -188,6 +188,7 @@ def _build_compose_backend(config: AppConfig, executor: CommandExecutor) -> Comp
     compose = config.compose
     if compose.runner == "agent":
         if compose.agent_url:
+            _warn_ignored_compose_settings(compose)
             return AgentComposeBackend(
                 compose.agent_url,
                 token=compose.agent_token,
@@ -195,6 +196,32 @@ def _build_compose_backend(config: AppConfig, executor: CommandExecutor) -> Comp
             )
         logger.warning("compose.runner=agent 但未配置 compose.agent_url，回落到在本地执行 compose")
     return LocalComposeBackend(executor, compose)
+
+
+def _warn_ignored_compose_settings(compose: ComposeConfig) -> None:
+    """Warn about panel-side keys that ``runner=agent`` renders inert.
+
+    With the agent backend, discovery and execution both happen on the host, so
+    ``search_paths`` / ``max_depth`` / ``timeout`` are never read. Silently
+    ignoring them is the worst outcome: the user edits the config, restarts, and
+    the behaviour simply does not change — with nothing to explain why.
+    """
+    defaults = ComposeConfig()
+    ignored = [
+        name
+        for name, current, default in (
+            ("compose.search_paths", list(compose.search_paths), list(defaults.search_paths)),
+            ("compose.max_depth", compose.max_depth, defaults.max_depth),
+            ("compose.timeout", compose.timeout, defaults.timeout),
+        )
+        if current != default
+    ]
+    if ignored:
+        logger.warning(
+            "compose.runner=agent 时 %s 不生效：扫描目录与超时都由宿主机代理决定，"
+            "请改用 lightpanel-agent 的 --stacks-root / --max-depth / --compose-timeout",
+            "、".join(ignored),
+        )
 
 
 def load_extra_command_definitions(path: str) -> list:

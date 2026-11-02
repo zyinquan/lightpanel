@@ -62,8 +62,10 @@ services:
       LIGHTPANEL_COMPOSE__RUNNER: "${COMPOSE_RUNNER:-agent}"
       LIGHTPANEL_COMPOSE__AGENT_URL: "${COMPOSE_AGENT_URL-http://host.docker.internal:9101}"
       LIGHTPANEL_COMPOSE__AGENT_TOKEN: "${METRICS_AGENT_TOKEN:-}"
-      # local 模式下的扫描目录（容器内可见的路径）；agent 模式下由宿主机代理扫描
-      LIGHTPANEL_COMPOSE__SEARCH_PATHS: '["/data"]'
+      # agent 模式下扫描发生在宿主机，容器侧的 search_paths / max_depth 不参与任何逻辑，
+      # 所以这里不设；要改扫描范围请给 lightpanel-agent 加 --stacks-root / --max-depth。
+      # 只有 COMPOSE_RUNNER=local 时才需要挂载目录并设置：
+      #   LIGHTPANEL_COMPOSE__SEARCH_PATHS: '["/data","/opt/stacks"]'
       LIGHTPANEL_LOGGING__LEVEL: "INFO"
     volumes:
       # 命名卷代替宿主机目录绑定，磁盘不足时同样是宿主机的存储

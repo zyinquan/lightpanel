@@ -65,12 +65,20 @@ LIGHTPANEL_COMPOSE__AGENT_URL: "http://host.docker.internal:9101"
 # 宿主机（与面板同一套代码，无需额外依赖）
 python -m lightpanel.agent --host 0.0.0.0 --port 9101 \
   --stacks-root /opt/stacks \
-  --stacks-root /home/me/projects          # 可重复，agent 只允许操作这些目录下的项目
+  --stacks-root /home/me/projects \        # 可重复，agent 只允许操作这些目录下的项目
+  --max-depth 4                            # 递归深度，默认 3
 # 需要鉴权时： --token s3cret，并在 compose 里设 METRICS_AGENT_TOKEN=s3cret
 
 # Windows 路径直接写盘符即可
-python -m lightpanel.agent --host 0.0.0.0 --stacks-root E:/docker-test
+python -m lightpanel.agent --host 0.0.0.0 --stacks-root E:/docker-test --max-depth 4
+
+# 或者用 Makefile
+make agent STACKS_ROOT=E:/docker-test STACKS_DEPTH=4
 ```
+
+> `--stacks-root` / `--max-depth` 是 **agent 模式下唯一生效的扫描配置**。
+> 面板侧的 `compose.search_paths` / `compose.max_depth` 在这条路径下不参与任何逻辑，
+> 设了会打 WARNING 提示（避免“改了配置却毫无反应”）。
 
 `docker-compose.api.yml` 默认已把 `LIGHTPANEL_METRICS__REMOTE_URL` 指向
 `http://host.docker.internal:9101/metrics`，`compose.runner` 指向 `agent`；不想要宿主机指标就
@@ -197,7 +205,7 @@ services:
 - [ ] `cors_origins` 限定为前端域名，不要用 `*`
 - [ ] `commands.allowed_binaries` 保持最小（默认仅 `docker` / `docker-compose`）
 - [ ] `/data` 已挂载到持久化卷，配置好备份
-- [ ] 确认 `compose.search_paths` 只包含你希望被管理的目录
+- [ ] 确认 `lightpanel-agent` 的 `--stacks-root` 只包含你希望被管理的目录（`runner=local` 时改看 `compose.search_paths`）
 
 ## 备份与恢复
 
@@ -222,8 +230,8 @@ docker compose -f deploy/docker-compose.yml up -d --build
 | 现象 | 排查方向 |
 | --- | --- |
 | 页面提示"引擎不可用" | 检查 socket 是否挂载、容器用户是否有权限、`docker.mode` 是否为 `fake` |
-| 找不到 compose 项目 | 检查 `compose.search_paths` 是否包含项目目录且已挂载进容器、`max_depth` 是否足够 |
-| 栈 `up` 返回 400 `not readable from this host` | compose 文件在引擎主机上，但面板看不到该路径：把项目放到 `/data` 下，或改用挂载 socket 的方式部署 |
+| 找不到 compose 项目 | `runner=agent`（默认）：检查 `lightpanel-agent` 是否在跑、启动参数 `--stacks-root` 是否包含项目目录、`--max-depth` 是否够深；`runner=local`：检查 `compose.search_paths` 是否已挂载进容器 |
+| 栈 `up` 返回 400 `not readable from this host` | 这是 `runner=local` 才会出现的错误：compose 文件在引擎主机上但面板看不到该路径。改用 `COMPOSE_RUNNER=agent`（默认），或把项目放到容器内可见的 `/data` 下 |
 | 系统指标看着像小机器 | 容器内 psutil 读的是容器/Docker VM，不是宿主机；要看宿主机指标请直接跑在宿主机上 |
 | 命令报 `command_rejected` | 可执行文件不在 `allowed_binaries` 内，或 argv 含解释器/危险参数 |
 | 命令超时 | 调大 `compose.timeout` 或该命令的 `timeout`（上限 `commands.max_timeout`） |

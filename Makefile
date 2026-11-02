@@ -6,6 +6,8 @@ AGENT_HOST ?= 0.0.0.0
 AGENT_PORT ?= 9101
 # agent 允许管理的 compose 根目录，可留空（只提供指标）
 STACKS_ROOT ?=
+# 递归扫描深度（只在 STACKS_ROOT 非空时生效；面板侧的 compose.max_depth 在此模式下无效）
+STACKS_DEPTH ?= 4
 
 help: ## 显示帮助
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk -F ':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -37,8 +39,8 @@ build: ## 构建前端产物
 docker: ## 构建并启动容器
 	docker compose -f deploy/docker-compose.yml up -d --build
 
-agent: ## 在宿主机启动代理（宿主机指标 + compose 执行；STACKS_ROOT 指定可管理的栈目录）
-	cd backend && $(PYTHON) -m lightpanel.agent --host $(AGENT_HOST) --port $(AGENT_PORT) $(if $(AGENT_TOKEN),--token $(AGENT_TOKEN)) $(if $(STACKS_ROOT),--stacks-root $(STACKS_ROOT))
+agent: ## 在宿主机启动代理（指标 + compose；STACKS_ROOT 栈根目录，STACKS_DEPTH 扫描深度）
+	cd backend && $(PYTHON) -m lightpanel.agent --host $(AGENT_HOST) --port $(AGENT_PORT) $(if $(AGENT_TOKEN),--token $(AGENT_TOKEN)) $(if $(STACKS_ROOT),--stacks-root $(STACKS_ROOT) --max-depth $(STACKS_DEPTH))
 
 clean: ## 清理构建与缓存产物
 	rm -rf frontend/dist backend/.pytest_cache backend/htmlcov backend/.coverage

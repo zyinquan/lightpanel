@@ -227,3 +227,43 @@ def test_compose_runner_agent_without_url_falls_back_to_local(tmp_path, caplog):
 def test_compose_runner_defaults_to_local(tmp_path):
     container = composition.build_container(_config(tmp_path))
     assert isinstance(container.stacks.engine.backend, LocalComposeBackend)
+
+
+def test_agent_runner_warns_about_inert_panel_side_settings(tmp_path, caplog):
+    """agent 模式下 search_paths / max_depth 由宿主机决定，配了要明说。"""
+    with caplog.at_level("WARNING"):
+        composition.build_container(
+            _config(
+                tmp_path,
+                compose={
+                    "runner": "agent",
+                    "agent_url": "http://host.docker.internal:9101",
+                    "search_paths": ["/data", "/opt/stacks"],
+                    "max_depth": 6,
+                },
+            )
+        )
+    assert "compose.search_paths" in caplog.text
+    assert "compose.max_depth" in caplog.text
+    assert "--stacks-root" in caplog.text
+
+
+def test_agent_runner_stays_quiet_with_default_scan_settings(tmp_path, caplog):
+    with caplog.at_level("WARNING"):
+        composition.build_container(
+            _config(
+                tmp_path,
+                compose={"runner": "agent", "agent_url": "http://host.docker.internal:9101"},
+            )
+        )
+    assert "不生效" not in caplog.text
+
+
+def test_local_runner_does_not_warn_about_scan_settings(tmp_path, caplog):
+    with caplog.at_level("WARNING"):
+        composition.build_container(
+            _config(
+                tmp_path, compose={"runner": "local", "search_paths": ["/data"], "max_depth": 5}
+            )
+        )
+    assert "不生效" not in caplog.text
