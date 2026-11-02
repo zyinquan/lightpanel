@@ -24,8 +24,9 @@ from ...domain.ports import Clock, MetricsProvider
 from .environment import runtime_scope
 
 CONTAINER_HINT = (
-    "面板运行在容器内，指标来自容器（或 Docker 虚拟机），并非宿主机。"
-    "在宿主机上启动 lightpanel-agent，并把 metrics.remote_url 指过去即可显示宿主机指标。"
+    "面板运行在容器内：CPU / 内存 / 负载取所在内核（Linux 宿主机上即整机，"
+    "Docker Desktop 上是其 Linux 虚拟机），网络与磁盘只覆盖本容器。"
+    "需要完整宿主机口径请在宿主机启动 lightpanel-agent，并指向 metrics.remote_url。"
 )
 
 

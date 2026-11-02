@@ -161,7 +161,7 @@ docker cp ./some-compose-project lightpanel:/data/stacks      # 给面板一个�
 
 容易踩的坑：
 
-- **容器内的系统指标是容器/Docker VM 的**，不是 Windows 宿主机；要看宿主机指标就直接跑在宿主机上。
+- **容器内的系统指标口径是混的**：Linux 容器里 CPU / 内存 / 负载本来就是整机数字（内核不按容器隔离 `/proc`），但网络只算本容器、磁盘只含挂进容器的目录；Docker Desktop 上则整体是那台 Linux 虚拟机的数字。要统一口径就在宿主机跑 `lightpanel-agent`。
 - **宿主机路径在容器内不可见**：栈的 `config_files` / `working_dir` 来自 compose 标签，属于引擎主机路径。`down`/`restart` 不依赖它，`up`/`pull` 依赖。要么把项目放到 `compose.search_paths`（默认含 `/data`）下，要么直接用 `compose.runner=agent` 交给宿主机代理。
 - **容器内执行 compose 会把相对挂载解析错**：`./src:/app` 被解析成容器内绝对路径交给宿主机 docker，宿主机上不存在 → docker 建空目录顶上，容器起来了、代码没挂上，**不报错**。带源码挂载的开发栈必须用 `compose.runner=agent`。
 - **Git Bash 会改写参数里的类 Unix 路径**：`docker cp x lightpanel:/data/y`、`docker exec ... /data/y` 都可能被转成 Windows 路径，前面加 `MSYS_NO_PATHCONV=1`。

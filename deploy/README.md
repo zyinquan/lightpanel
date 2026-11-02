@@ -35,7 +35,7 @@ docker compose -f deploy/docker-compose.api.yml up -d
 | 容器启停 / 日志 / 详情 | 正常，走 Engine API |
 | 栈 `up` / `down` / `restart` / `pull` | 交给宿主机上的 `lightpanel-agent` 执行（`compose.runner=agent`，compose 文件默认就是这么配的）。为什么必须这样见下节 |
 | 栈自动发现 | `agent` 模式下由宿主机代理扫描 `--stacks-root` 指定的目录，宿主机上任何位置的栈都能扫到；已在运行的栈另外还能靠 compose 标签发现 |
-| 系统指标 | 默认是**面板所在环境**（容器 / Docker VM）的 CPU、内存与磁盘。在宿主机跑 `python -m lightpanel.agent --host 0.0.0.0` 后，面板会自动走 `host.docker.internal:9101` 取真实宿主机指标；代理没起来就回落并在概览页顶部说明 |
+| 系统指标 | 跑在容器里时 CPU / 内存 / 负载取所在内核的数字（Linux 宿主机上即整机，Docker Desktop 上是其 Linux 虚拟机），网络只统计本容器、磁盘只含挂进容器的目录。在宿主机跑 `python -m lightpanel.agent --host 0.0.0.0` 后，面板会自动走 `host.docker.internal:9101` 取完整宿主机口径；代理没起来就回落并在概览页顶部说明 |
 | 磁盘列表 | 只列真实挂载目录，`/etc/hostname` 之类的单文件挂载会被过滤掉 |
 
 ### 为什么容器里的 compose 要交给宿主机执行
@@ -58,8 +58,8 @@ LIGHTPANEL_COMPOSE__AGENT_URL: "http://host.docker.internal:9101"
 
 ### 让容器里的面板显示宿主机指标、并真正管理 compose 栈
 
-容器里的 psutil 只能看到容器（Windows / macOS 上是 Docker Desktop 的 Linux 虚拟机）。
-在宿主机跑自带的小代理即可，指标和 compose 由同一进程提供：
+容器里的 psutil 在网络和磁盘上只覆盖本容器（Windows / macOS 上整体是 Docker Desktop
+的 Linux 虚拟机）。在宿主机跑自带的小代理即可，指标和 compose 由同一进程提供：
 
 ```bash
 # 宿主机（与面板同一套代码，无需额外依赖）
@@ -197,6 +197,18 @@ services:
       - "998"     # 替换为宿主机 docker 组 gid
 ```
 
+`deploy/docker-compose.yml` 里已经写好了 `group_add: ["${DOCKER_GID:-999}"]`，
+把真实 GID 传进去即可，不要靠猜：
+
+```bash
+DOCKER_GID=$(stat -c '%g' /var/run/docker.sock) \
+  docker compose -f deploy/docker-compose.yml up -d
+```
+
+> 漏配置这一项的症状很容易被误判：**概览页指标照常显示**（读 `/proc` 不需要
+> socket 权限），但容器列表空白、启停和日志全失败。若 socket 是 `root:root`
+> （部分单板机 / rootless 配置），`group_add` 无效，改用 `user: "0:0"`。
+
 ## 上线前检查清单
 
 - [ ] `security.enabled: true` 且设置了强令牌（`openssl rand -hex 24`）
@@ -232,7 +244,8 @@ docker compose -f deploy/docker-compose.yml up -d --build
 | 页面提示"引擎不可用" | 检查 socket 是否挂载、容器用户是否有权限、`docker.mode` 是否为 `fake` |
 | 找不到 compose 项目 | `runner=agent`（默认）：检查 `lightpanel-agent` 是否在跑、启动参数 `--stacks-root` 是否包含项目目录、`--max-depth` 是否够深；`runner=local`：检查 `compose.search_paths` 是否已挂载进容器 |
 | 栈 `up` 返回 400 `not readable from this host` | 这是 `runner=local` 才会出现的错误：compose 文件在引擎主机上但面板看不到该路径。改用 `COMPOSE_RUNNER=agent`（默认），或把项目放到容器内可见的 `/data` 下 |
-| 系统指标看着像小机器 | 容器内 psutil 读的是容器/Docker VM，不是宿主机；要看宿主机指标请直接跑在宿主机上 |
+| 容器页空白 / 日志接口报 `读不到 Docker socket（权限不足）` | 容器内用户不在宿主机 docker 组：`DOCKER_GID=$(stat -c '%g' /var/run/docker.sock) docker compose -f deploy/docker-compose.yml up -d`。注意此时**概览页仍显示正常数字**，因为读 `/proc` 不需要 socket 权限 |
+| 系统指标与宿主机对不上 | Linux 容器里 CPU / 内存 / 负载本来就是整机数值（内核不按容器隔离 `/proc`），但网络只算本容器、磁盘只含挂进容器的目录；Docker Desktop 上则是其 Linux 虚拟机的数字。要统一口径请启动 `lightpanel-agent` 并把 `metrics.remote_url` 指过去 |
 | 命令报 `command_rejected` | 可执行文件不在 `allowed_binaries` 内，或 argv 含解释器/危险参数 |
 | 命令超时 | 调大 `compose.timeout` 或该命令的 `timeout`（上限 `commands.max_timeout`） |
 | `compose up` 卡在 `Container ... Creating` | 宿主机目录挂载未被允许（Docker Desktop 的文件共享 / SELinux 标签），或挂载路径不存在 |

@@ -27,9 +27,10 @@ metrics:
   history_size: 60        # 保留多少个采样点用于绘制趋势图
   disk_mounts: []         # 为空表示展示全部挂载点
   network_interfaces: []  # 为空表示统计全部网卡
-  # 宿主机指标代理：面板跑在容器里时，本地 psutil 只能看到容器（Windows / macOS 上是
-  # Docker Desktop 的 Linux 虚拟机）。在宿主机上跑 `lightpanel-agent` 后填这里，
-  # 概览页就会显示真实宿主机指标；连不上会自动回落到本地指标并提示。
+  # 宿主机指标代理：面板跑在容器里时，本地 psutil 的 CPU/内存是所在内核的数字
+  # （Linux 宿主机上即整机，Docker Desktop 上是它的 Linux 虚拟机），但网络只算本容器、
+  # 磁盘只含挂进容器的目录。在宿主机上跑 `lightpanel-agent` 后填这里，概览页就能拿到
+  # 完整一致的宿主机口径；连不上会自动回落到本地指标并提示。
   remote_url: ""          # 例如 http://host.docker.internal:9101/metrics
   remote_timeout: 2.0
   remote_token: ""        # 与 `lightpanel-agent --token` 一致，留空表示不鉴权

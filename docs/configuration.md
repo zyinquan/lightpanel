@@ -59,12 +59,21 @@ LIGHTPANEL_SECURITY__ENABLED=true LIGHTPANEL_SECURITY__API_TOKEN=$(openssl rand 
 
 ### 指标口径（host / container）
 
-psutil 采到的是**当前进程所在环境**。面板跑在容器里时，得到的是容器（Windows / macOS
-上是 Docker Desktop 的 Linux 虚拟机）的数字，不是用户的机器。所以：
+psutil 采到的是**当前进程所在环境**，而这个"环境"在两类宿主上差别很大：
+
+| 部署形态 | CPU / 内存 / 负载 | 网络 | 磁盘 |
+| --- | --- | --- | --- |
+| 跑在 Linux 宿主机（非容器） | 整机 | 整机 | 整机 |
+| 跑在 Linux 上的容器里 | **整机**（内核不按容器隔离 `/proc/stat`、`/proc/meminfo`） | 只有该容器的 netns | 只有挂进容器的目录 |
+| 跑在 Docker Desktop 的容器里 | Docker Desktop 的 Linux 虚拟机 | 同上 | 同上 |
+
+也就是说：Linux 容器里的 CPU 与内存本来就是宿主机数字，**但云盘/网络不是**——同一屏
+上混了两种口径。所以：
 
 - `/api/system` 返回里带 `scope` / `source` / `hint` 三个字段，概览页顶部据此显示
-  「宿主机指标」或「容器内指标」。
-- 想让容器里的面板显示**真实宿主机指标**，在宿主机上跑代理，然后填 `remote_url`：
+  「宿主机指标」或「容器内指标」，并说明哪些部分是容器视角。
+- 想让容器里的面板拿到**完整一致的宿主机口径**（含全机网络、全部磁盘、cgroup 限额之外的
+  真实值），在宿主机上跑代理，然后填 `remote_url`：
 
   ```bash
   # 宿主机（需要 lightpanel 的依赖环境）

@@ -49,7 +49,7 @@ const scopeDetail = computed(() => {
   const current = snap.value
   if (!current) return ''
   if (current.scope === 'container') {
-    return current.hint ?? '面板运行在容器内，数字来自容器而非宿主机。'
+    return current.hint ?? '面板运行在容器内：网络与磁盘只覆盖本容器，CPU / 内存取所在内核。'
   }
   const source = current.source === 'agent' ? '宿主机代理' : '本机 psutil'
   return `来自 ${current.host.hostname} · 采集自${source}`
