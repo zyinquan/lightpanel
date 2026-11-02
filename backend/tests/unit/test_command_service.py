@@ -111,6 +111,26 @@ async def test_engine_action_start_and_stop(command_service, container_engine):
 
 
 async def test_stack_engine_action(command_service, executor):
+    # restart 不依赖 compose 文件（按项目标签操作），用于验证委托链路
+    command_service.register(
+        CommandDefinition(
+            id="stack.restart",
+            name="重启",
+            target=CommandTarget.STACK,
+            kind=CommandKind.DOCKER_API,
+            action="restart",
+        )
+    )
+    executor.always(CommandResult.success(("docker", "compose", "restart"), stdout="done"))
+    result = await command_service.run("stack.restart", target_id="lightpanel")
+    assert result.argv[:2] == ("docker", "compose")
+    assert "restart" in result.argv
+
+
+async def test_stack_up_requires_readable_compose_files(command_service):
+    """up 必须有配置文件；读不到时给 400，而不是让 compose 抛出费解的错误。"""
+    from lightpanel.domain.errors import ValidationError
+
     command_service.register(
         CommandDefinition(
             id="stack.up",
@@ -120,10 +140,9 @@ async def test_stack_engine_action(command_service, executor):
             action="up",
         )
     )
-    executor.always(CommandResult.success(("docker", "compose", "up"), stdout="done"))
-    result = await command_service.run("stack.up", target_id="lightpanel")
-    assert result.argv[:2] == ("docker", "compose")
-    assert "up" in result.argv
+    with pytest.raises(ValidationError) as excinfo:
+        await command_service.run("stack.up", target_id="lightpanel")
+    assert excinfo.value.status_code == 400
 
 
 async def test_unknown_engine_action_is_rejected(command_service):
@@ -167,3 +186,46 @@ async def test_timeout_is_forwarded(command_service, executor):
     command_service.register(echo_command())
     await command_service.run("container.echo", target_id="nginx", timeout=5)
     assert executor.calls[-1][2] == 5.0
+
+
+async def test_stack_command_drops_working_dir_missing_on_this_host(
+    command_service, executor
+):
+    """面板通过远程引擎控制时，栈的 working_dir 是另一台机器上的路径。
+
+    fake 引擎里的栈工作目录是 /opt/lightpanel（本机不存在），命令仍然要能跑，
+    只是不再传 cwd —— 否则 docker compose -p <name> ps 这种与目录无关的命令会
+    被策略判成"非法路径"。
+    """
+    command_service.register(
+        CommandDefinition(
+            id="stack.ps",
+            name="查看进程",
+            target=CommandTarget.STACK,
+            kind=CommandKind.SHELL,
+            argv=("docker", "compose", "-p", "{project}", "ps"),
+        )
+    )
+
+    await command_service.run("stack.ps", target_id="lightpanel")
+
+    argv, cwd, _ = executor.calls[-1]
+    assert argv == ("docker", "compose", "-p", "lightpanel", "ps")
+    assert cwd is None
+
+
+async def test_explicit_working_dir_is_still_enforced(command_service):
+    """写到定义里的 working_dir 是用户配置，无效时必须报错。"""
+    command_service.register(
+        CommandDefinition(
+            id="stack.ps",
+            name="查看进程",
+            target=CommandTarget.STACK,
+            kind=CommandKind.SHELL,
+            argv=("docker", "compose", "-p", "{project}", "ps"),
+            working_dir="/definitely/missing/dir",
+        )
+    )
+
+    with pytest.raises(CommandRejectedError):
+        await command_service.run("stack.ps", target_id="lightpanel")

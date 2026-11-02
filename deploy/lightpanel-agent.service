@@ -1,0 +1,43 @@
+# LightPanel 宿主机代理（systemd 单元）
+#
+# 用途：面板以容器方式部署时，容器里做不对两件事——
+#   1. psutil 只能看到容器 / Docker 虚拟机，看不到宿主机；
+#   2. compose 解析 ./src:/app 这类相对挂载时用的是容器内文件系统，
+#      宿主机 docker 只能建空目录顶上，源码没挂上还不报错。
+# 把本代理跑在宿主机上，面板配置 metrics.remote_url 与 compose.runner=agent 即可。
+#
+# 安装：
+#   sudo cp deploy/lightpanel-agent.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now lightpanel-agent
+#
+# 注意：
+#   * WorkingDirectory / ExecStart 里的路径按你的实际安装位置改；
+#   * --stacks-root 决定 agent 允许操作的目录（可重复），只有这些目录下的
+#     compose 项目能被面板启停；不传则只提供指标、不提供 compose；
+#   * 默认监听 0.0.0.0 才能被容器通过 host.docker.internal 访问，
+#     同网段可读、可操作栈，建议设置 LIGHTPANEL_AGENT_TOKEN 并在面板侧配
+#     metrics.remote_token / compose.agent_token；
+#   * 面板本身跑在宿主机上时**不需要**这个代理。
+
+[Unit]
+Description=LightPanel host agent (metrics + compose)
+Documentation=https://github.com/example/lightpanel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lightpanel
+WorkingDirectory=/opt/lightpanel/backend
+Environment=LIGHTPANEL_AGENT_TOKEN=
+Environment=LIGHTPANEL_STACKS_ROOT=/opt/stacks
+ExecStart=/opt/lightpanel/backend/.venv/bin/python -m lightpanel.agent --host 0.0.0.0 --port 9101 --stacks-root ${LIGHTPANEL_STACKS_ROOT}
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

@@ -6,6 +6,7 @@ import {
   formatDuration,
   formatPercent,
   initials,
+  normalizeUrl,
   stateColor,
   stateLabel,
   usageColor,
@@ -85,5 +86,26 @@ describe('colorFromString / initials', () => {
     expect(initials('Jellyfin')).toBe('JE')
     expect(initials('影音')).toBe('影')
     expect(initials('  ')).toBe('?')
+  })
+})
+
+describe('normalizeUrl', () => {
+  it('保留已有协议', () => {
+    expect(normalizeUrl('http://nas:8096')).toBe('http://nas:8096')
+    expect(normalizeUrl('https://example.com/a?b=1')).toBe('https://example.com/a?b=1')
+  })
+
+  it('缺协议时补 http://，避免被当成相对路径', () => {
+    expect(normalizeUrl('nas:8096')).toBe('http://nas:8096')
+    expect(normalizeUrl('192.168.1.2:5001')).toBe('http://192.168.1.2:5001')
+    expect(normalizeUrl('//nas:8096/x')).toBe('http://nas:8096/x')
+    expect(normalizeUrl('  docker.local  ')).toBe('http://docker.local')
+  })
+
+  it('空值与危险协议不可跳转', () => {
+    expect(normalizeUrl('')).toBe('')
+    expect(normalizeUrl(undefined)).toBe('')
+    expect(normalizeUrl('javascript:alert(1)')).toBe('')
+    expect(normalizeUrl('data:text/html,<b>x')).toBe('')
   })
 })

@@ -58,6 +58,8 @@ def setup_logging(settings: LoggingConfig | None = None) -> None:
                     "handlers": ["default"],
                     "propagate": False,
                 },
+                # httpx 每个 Docker API 调用都会打一条 INFO，会把访问日志淹掉
+                "httpx": {"level": "WARNING", "handlers": ["default"], "propagate": False},
             },
         }
     )

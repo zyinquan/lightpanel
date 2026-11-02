@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+from collections import namedtuple
 
+import psutil
 import pytest
 
 from lightpanel.adapters.metrics.psutil_provider import PsutilMetricsProvider
@@ -64,3 +66,34 @@ def test_setup_logging_json():
     setup_logging(LoggingConfig(level="DEBUG", format="json"))
     assert logging.getLogger().level == logging.DEBUG
     setup_logging(LoggingConfig(level="INFO"))
+
+
+def test_disk_metrics_ignore_single_file_mounts(monkeypatch, tmp_path):
+    """容器里 /etc/hostname 这类单文件挂载不是磁盘，不能出现在面板上。"""
+    mount_dir = tmp_path / "data"
+    mount_dir.mkdir()
+    mount_file = tmp_path / "hostname"
+    mount_file.write_text("container", encoding="utf-8")
+
+    class _Partition:
+        def __init__(self, mountpoint: str, device: str = "/dev/sda1") -> None:
+            self.mountpoint = mountpoint
+            self.device = device
+            self.fstype = "ext4"
+
+    usage = namedtuple("usage", "total used free percent")
+    monkeypatch.setattr(
+        psutil,
+        "disk_partitions",
+        lambda all=False: [_Partition(str(mount_dir)), _Partition(str(mount_file))],
+    )
+    monkeypatch.setattr(
+        psutil,
+        "disk_usage",
+        lambda path: usage(total=100, used=40, free=60, percent=40.0),
+    )
+
+    provider = PsutilMetricsProvider(MetricsConfig())
+    disks = provider._disk_metrics()
+
+    assert [d.mountpoint for d in disks] == [str(mount_dir)]

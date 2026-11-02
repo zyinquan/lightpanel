@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
 import SoftwareCard from '@/components/SoftwareCard.vue'
 import ContainerCard from '@/components/ContainerCard.vue'
 import StackCard from '@/components/StackCard.vue'
 import TagFilter from '@/components/TagFilter.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import { clearToasts, useToast } from '@/composables/useToast'
 import type { CommandDefinition, ContainerInfo, SoftwareEntry, StackInfo } from '@/api/types'
 
 const entry: SoftwareEntry = {
@@ -89,6 +90,53 @@ describe('SoftwareCard', () => {
     const chips = wrapper.findAll('.chip--tag')
     expect(chips[0].classes()).not.toContain('chip--active')
     expect(chips[1].classes()).toContain('chip--active')
+  })
+})
+
+describe('SoftwareCard 跳转', () => {
+  beforeEach(() => {
+    clearToasts()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    clearToasts()
+  })
+
+  it('图标字符优先，留空才回落到名称首字母', () => {
+    const custom = mount(SoftwareCard, { props: { entry: { ...entry, icon: '鲨' } } })
+    expect(custom.get('.software__icon').text()).toBe('鲨')
+    const fallback = mount(SoftwareCard, { props: { entry } })
+    expect(fallback.get('.software__icon').text()).toBe('JE')
+  })
+
+  it('点击卡片用新窗口打开，并补全缺失的协议', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue({ opener: null } as unknown as Window)
+    const wrapper = mount(SoftwareCard, { props: { entry: { ...entry, url: 'nas:8096' } } })
+    await wrapper.get('a.software__body').trigger('click')
+    expect(open).toHaveBeenCalledWith('http://nas:8096', '_blank')
+  })
+
+  it('弹出被拦截时复制链接并提示，而不是静默失败', async () => {
+    vi.spyOn(window, 'open').mockReturnValue(null)
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    })
+    const wrapper = mount(SoftwareCard, { props: { entry } })
+    await wrapper.get('a.software__body').trigger('click')
+    await flushPromises()
+    expect(writeText).toHaveBeenCalledWith('http://nas:8096')
+    expect(useToast().toasts.value.at(-1)?.message).toContain('链接已复制')
+  })
+
+  it('没有地址的条目不可跳转', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const wrapper = mount(SoftwareCard, { props: { entry: { ...entry, url: '' } } })
+    expect(wrapper.classes()).toContain('software--static')
+    await wrapper.get('a.software__body').trigger('click')
+    expect(open).not.toHaveBeenCalled()
   })
 })
 

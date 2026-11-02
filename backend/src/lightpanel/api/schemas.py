@@ -157,6 +157,10 @@ class SystemOut(_Out):
     disks: list[DiskOut] = Field(default_factory=list)
     network: NetworkOut | None = None
     collected_at: datetime | None = None
+    # 指标口径：host = 真实宿主机；container = 面板所在容器 / Docker 虚拟机。
+    scope: str = "host"
+    source: str = "psutil"
+    hint: str | None = None
 
     @classmethod
     def from_domain(cls, snapshot: SystemSnapshot) -> SystemOut:
@@ -167,6 +171,9 @@ class SystemOut(_Out):
             disks=[DiskOut.from_domain(d) for d in snapshot.disks],
             network=NetworkOut.from_domain(snapshot.network),
             collected_at=snapshot.collected_at,
+            scope=snapshot.scope,
+            source=snapshot.source,
+            hint=snapshot.hint,
         )
 
 

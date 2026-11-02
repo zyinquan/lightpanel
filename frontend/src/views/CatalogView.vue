@@ -8,6 +8,7 @@ import SoftwareCard from '@/components/SoftwareCard.vue'
 import TagFilter from '@/components/TagFilter.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { normalizeUrl } from '@/utils/format'
 
 const selectedTags = ref<string[]>([])
 const matchAll = ref(false)
@@ -70,7 +71,12 @@ async function save() {
   }
   saving.value = true
   try {
-    const payload = { ...form.value, tags: parseTags(tagsText.value) }
+    // 地址统一补齐协议：`nas:8096` 这类值当作相对路径会跳回面板本身。
+    const payload = {
+      ...form.value,
+      url: normalizeUrl(form.value.url),
+      tags: parseTags(tagsText.value),
+    }
     if (editing.value) {
       await api.updateEntry(editing.value.id, payload)
       pushToast('已更新', 'success')
@@ -181,7 +187,7 @@ function toggleTag(tag: string) {
                 <input v-model="form.color" class="input" placeholder="#4c8dff 或留空自动" />
               </label>
               <label class="field">
-                <span class="field__label">图标字符</span>
+                <span class="field__label">图标字符（留空取首字母）</span>
                 <input v-model="form.icon" class="input" placeholder="🎬" />
               </label>
             </div>

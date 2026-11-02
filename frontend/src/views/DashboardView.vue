@@ -42,10 +42,33 @@ const rootDisk = computed(() => {
 })
 
 const load = computed(() => snap.value?.cpu.load_average ?? null)
+
+/** 指标口径：看一眼就知道这些数字是宿主机的，还是面板容器的。 */
+const scopeTitle = computed(() => (snap.value?.scope === 'container' ? '容器内指标' : '宿主机指标'))
+const scopeDetail = computed(() => {
+  const current = snap.value
+  if (!current) return ''
+  if (current.scope === 'container') {
+    return current.hint ?? '面板运行在容器内，数字来自容器而非宿主机。'
+  }
+  const source = current.source === 'agent' ? '宿主机代理' : '本机 psutil'
+  return `来自 ${current.host.hostname} · 采集自${source}`
+})
 </script>
 
 <template>
   <section>
+    <div v-if="snap" class="scope" :class="`scope--${snap.scope}`" data-test="scope">
+      <span class="scope__tag">
+        <span
+          class="dot"
+          :style="{ background: snap.scope === 'host' ? 'var(--success)' : 'var(--warning)' }"
+        />
+        {{ scopeTitle }}
+      </span>
+      <span class="scope__text">{{ scopeDetail }}</span>
+    </div>
+
     <div class="grid-stats">
       <StatCard
         title="CPU"
@@ -148,6 +171,40 @@ const load = computed(() => snap.value?.cpu.load_average ?? null)
 </template>
 
 <style scoped>
+.scope {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-soft, rgba(255, 255, 255, 0.02));
+  font-size: 12.5px;
+}
+
+.scope__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-weight: 600;
+}
+
+.scope--container {
+  border-color: rgba(210, 153, 34, 0.45);
+  background: rgba(210, 153, 34, 0.08);
+}
+
+.scope--container .scope__tag {
+  color: var(--warning);
+}
+
+.scope__text {
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
 .grid-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));

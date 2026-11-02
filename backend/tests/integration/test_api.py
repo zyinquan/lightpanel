@@ -149,7 +149,8 @@ def test_stack_list(client):
 
 
 def test_stack_action(client):
-    response = client.post("/api/stacks/lightpanel/up", json={"extra_args": ["--force-recreate"]})
+    # restart 走项目标签，不依赖 compose 文件是否存在
+    response = client.post("/api/stacks/lightpanel/restart", json={"extra_args": ["--force-recreate"]})
     assert response.status_code == 200
     body = response.json()
     assert body["stack"]["name"] == "lightpanel"
@@ -158,12 +159,21 @@ def test_stack_action(client):
 
 def test_stack_action_failure_is_reported(app, client):
     app.state.container.command_executor.always(
-        CommandResult.failure(("docker", "compose", "up"), 1, stderr="boom")
+        CommandResult.failure(("docker", "compose", "restart"), 1, stderr="boom")
     )
-    response = client.post("/api/stacks/lightpanel/up", json={})
+    response = client.post("/api/stacks/lightpanel/restart", json={})
     assert response.status_code == 502
     assert response.json()["code"] == "command_failed"
     assert "boom" in response.json()["details"]["stderr"]
+
+
+def test_stack_up_without_reachable_compose_files_is_rejected(client):
+    """fake 引擎里的栈配置在 /opt/lightpanel，本机读不到，up 应当 400 而不是 502。"""
+    response = client.post("/api/stacks/lightpanel/up", json={})
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["code"] == "validation_error"
+    assert "lightpanel" in payload["message"]
 
 
 # --------------------------------------------------------------------------- #

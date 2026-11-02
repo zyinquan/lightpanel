@@ -69,6 +69,14 @@ class EngineUnavailableError(LightPanelError):
     default_message = "Backend engine is unavailable"
 
 
+class RemoteMetricsError(LightPanelError):
+    """宿主机指标代理不可用（连不上 / 鉴权失败 / 返回格式不对）。"""
+
+    status_code = 503
+    code = "metrics_agent_unavailable"
+    default_message = "Host metrics agent is unavailable"
+
+
 class CommandRejectedError(LightPanelError):
     """A command was refused *before* execution (guard / allow-list violation)."""
 

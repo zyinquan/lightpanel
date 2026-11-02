@@ -62,6 +62,11 @@ async function act(stack: StackInfo, action: string) {
       <button class="btn" :disabled="stacks.loading.value" @click="stacks.refresh()">刷新</button>
     </header>
 
+    <div v-if="stacks.error.value" class="banner" data-test="stacks-error">
+      <span class="banner__tag">栈列表不可用</span>
+      <span class="banner__text">{{ errorMessage(stacks.error.value) }}</span>
+    </div>
+
     <div v-if="filtered.length" class="list">
       <StackCard
         v-for="stack in filtered"
@@ -76,9 +81,9 @@ async function act(stack: StackInfo, action: string) {
       />
     </div>
     <EmptyState
-      v-else
+      v-else-if="!stacks.error.value"
       title="没有编排栈"
-      description="在 compose.search_paths 配置的目录下放入 docker-compose.yml 即可被发现。"
+      description="把 docker-compose.yml 放进 compose.search_paths（或宿主机代理的 --stacks-root）下的目录即可被发现。"
     />
 
     <CommandRunner
@@ -93,6 +98,29 @@ async function act(stack: StackInfo, action: string) {
 </template>
 
 <style scoped>
+.banner {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid rgba(248, 81, 73, 0.35);
+  border-radius: var(--radius);
+  background: rgba(248, 81, 73, 0.08);
+  font-size: 12.5px;
+}
+
+.banner__tag {
+  flex: none;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.banner__text {
+  color: var(--text);
+  word-break: break-word;
+}
+
 .bar {
   display: flex;
   align-items: center;

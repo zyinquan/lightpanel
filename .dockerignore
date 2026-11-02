@@ -1,8 +1,7 @@
 .git
 .github
-# 文档不进镜像，但 pip 需要仓库根 README（backend/pyproject.toml: readme = "../README.md"）
+# 文档不进镜像；backend/pyproject.toml 用 readme = "README.md"，后端自己那份会被单独 COPY
 *.md
-!README.md
 **/__pycache__
 **/*.py[cod]
 **/*.egg-info

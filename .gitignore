@@ -18,6 +18,7 @@ dist/
 coverage/
 
 # Runtime / local data（示例文件仍需入库）
+/data/
 backend/data/catalog.yaml
 deploy/data/*
 !deploy/data/.gitkeep

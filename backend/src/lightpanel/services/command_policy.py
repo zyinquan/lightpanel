@@ -74,9 +74,25 @@ class CommandPolicy:
         if cwd is None or cwd == "":
             return None
         if not os.path.isabs(cwd):
-            raise CommandRejectedError("Working directory must be an absolute path", cwd=cwd)
+            raise CommandRejectedError(
+                "Working directory must be an absolute path on this host", cwd=cwd
+            )
         if not os.path.isdir(cwd):
             raise CommandRejectedError("Working directory does not exist", cwd=cwd)
+        return cwd
+
+    def resolve_cwd(self, cwd: str | None) -> str | None:
+        """Best-effort working directory for *discovered* targets.
+
+        A stack discovered through a remote Docker endpoint carries the engine
+        host's paths (``E:\\docker-test\\demo`` on Windows, ``/opt/app`` on a
+        Linux host behind TCP). Those are unusable here, but the commands we run
+        for such targets are label based (``docker compose -p <name> ps``), so
+        dropping ``cwd`` is correct — whereas failing the whole command would
+        make stack actions look broken.
+        """
+        if not cwd or not os.path.isabs(cwd) or not os.path.isdir(cwd):
+            return None
         return cwd
 
     def ensure_ad_hoc_allowed(self) -> None:

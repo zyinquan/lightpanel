@@ -101,6 +101,8 @@ def build_container(config: AppConfig) -> AppContainer:
 | 支持 Podman 而非 Docker | 新增 `adapters/docker/podman_engine.py` + `composition.py` 一处分支 |
 | 把软件目录换成 SQLite | 新增 `adapters/catalog/sqlite_repository.py` + `composition.py` 一处分支 |
 | 指标改为从 Prometheus 拉取 | 新增 `adapters/metrics/prometheus_provider.py` + 配置枚举 |
+| 容器里的面板要看宿主机指标 | 已内置：`adapters/metrics/remote_provider.py`（取代理）+ `fallback_provider.py`（回落），配置 `metrics.remote_url` 即启用 |
+| 容器里的面板要真正管理 compose 栈 | 已内置：`adapters/docker/agent_compose.py`（面板侧）+ `services/host_compose.py`（代理侧），配置 `compose.runner=agent` 即启用；两套实现都实现/使用同一组 `ComposeBackend` 接口 |
 | 新增一个 REST 端点 | 新增路由模块 + `routers/__init__.py`；服务与领域不动 |
 | 新增一种命令 | 往 `data/commands.yaml` 追加一条，无需改代码 |
 

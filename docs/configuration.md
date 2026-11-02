@@ -53,6 +53,30 @@ LIGHTPANEL_SECURITY__ENABLED=true LIGHTPANEL_SECURITY__API_TOKEN=$(openssl rand 
 | `disk_mounts` | `[]` | 只展示指定挂载点，空表示全部 |
 | `disk_exclude_fs` | `squashfs, tmpfs, devtmpfs, overlay, iso9660` | 排除的文件系统类型 |
 | `network_interfaces` | `[]` | 只统计指定网卡，空表示全部 |
+| `remote_url` | `""` | 宿主机指标代理地址，如 `http://host.docker.internal:9101/metrics`；留空则只采本机 |
+| `remote_timeout` | `2.0` | 请求代理的超时秒数 |
+| `remote_token` | `""` | 与 `lightpanel-agent --token` 一致的共享令牌，留空表示不鉴权 |
+
+### 指标口径（host / container）
+
+psutil 采到的是**当前进程所在环境**。面板跑在容器里时，得到的是容器（Windows / macOS
+上是 Docker Desktop 的 Linux 虚拟机）的数字，不是用户的机器。所以：
+
+- `/api/system` 返回里带 `scope` / `source` / `hint` 三个字段，概览页顶部据此显示
+  「宿主机指标」或「容器内指标」。
+- 想让容器里的面板显示**真实宿主机指标**，在宿主机上跑代理，然后填 `remote_url`：
+
+  ```bash
+  # 宿主机（需要 lightpanel 的依赖环境）
+  python -m lightpanel.agent --host 0.0.0.0 --port 9101
+  ```
+
+  ```bash
+  # 面板（容器）
+  LIGHTPANEL_METRICS__REMOTE_URL=http://host.docker.internal:9101/metrics
+  ```
+
+- 代理连不上时**自动回落**到本机 psutil，不会导致页面报错，只在 `hint` 里写明原因。
 
 ## docker
 
@@ -78,6 +102,32 @@ LIGHTPANEL_SECURITY__ENABLED=true LIGHTPANEL_SECURITY__API_TOKEN=$(openssl rand 
 | `search_paths` | `[/opt, /srv, /home, /data]` | 递归发现 compose 文件的根目录 |
 | `max_depth` | `3` | 递归深度 |
 | `timeout` | `600.0` | 单次 compose 命令超时（秒） |
+| `runner` | `local` | `local` 在本进程执行 / `agent` 交给宿主机上的 `lightpanel-agent` 执行 |
+| `agent_url` | `""` | agent 基地址，如 `http://host.docker.internal:9101`；`runner=agent` 时必填 |
+| `agent_token` | `""` | 与 `lightpanel-agent --token` 一致的共享令牌 |
+| `agent_timeout` | `600.0` | 请求 agent 的超时（秒），要覆盖 `compose.timeout` |
+
+**为什么需要 `runner: agent`**
+
+`docker compose` 解析相对挂载（`./src:/app`）时用的是**它自己所在文件系统**。面板跑在容器里时，解析出来的是容器内路径，交给宿主机 docker 守护进程后并不存在——守护进程会建一个空目录顶上，容器照常启动、代码却没挂上，而且不报错。
+
+把命令交给宿主机上的 `lightpanel-agent` 执行就不会有这个问题：它与 docker 守护进程共用同一个文件系统，用户写的路径含义不变。
+
+```yaml
+compose:
+  runner: agent
+  agent_url: http://host.docker.internal:9101
+  agent_token: s3cret
+```
+
+```bash
+# 宿主机上（--stacks-root 可重复，agent 只允许操作这些目录下的项目）
+python -m lightpanel.agent --host 0.0.0.0 --port 9101 \
+  --stacks-root /opt/stacks --stacks-root /home/me/projects \
+  --token s3cret
+```
+
+`agent` 模式下 `search_paths` 由 agent 侧的 `--stacks-root` 取代；面板侧的 `search_paths` 只在 `runner: local` 下生效。
 
 ## catalog
 

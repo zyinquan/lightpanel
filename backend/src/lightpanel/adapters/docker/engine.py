@@ -6,6 +6,7 @@ does not need the ``docker`` CLI installed for container-level operations.
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -14,6 +15,17 @@ import httpx
 from ...config import DockerConfig
 from ...domain.errors import EngineUnavailableError, NotFoundError
 from ...domain.models import ContainerInfo, ContainerState, PortBinding
+
+# 容器名/ID 只允许 Docker 认可的字符；其它输入一律拒绝，避免拼进 URL 后打到
+# 别的 Docker API 端点（例如 "../../version" 之类）。
+_SAFE_REFERENCE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+
+
+def _safe_reference(value: str) -> str:
+    reference = str(value or "").strip()
+    if not _SAFE_REFERENCE.match(reference):
+        raise NotFoundError(f"Invalid container reference: {value!r}")
+    return reference
 
 
 class DockerApiContainerEngine:
@@ -78,7 +90,10 @@ class DockerApiContainerEngine:
         return sorted(containers, key=lambda c: c.name.lstrip("/"))
 
     async def get_container(self, container_id: str) -> ContainerInfo:
-        payload = await self._get(f"/containers/{container_id}/json")
+        reference = _safe_reference(container_id)
+        payload = await self._get(f"/containers/{reference}/json")
+        if not isinstance(payload, dict):
+            raise NotFoundError(f"Container not found: {container_id}")
         return self._parse_container(
             {
                 "Id": payload.get("Id", container_id),
@@ -94,26 +109,30 @@ class DockerApiContainerEngine:
         )
 
     async def start(self, container_id: str) -> None:
-        await self._post(f"/containers/{container_id}/start")
+        await self._post(f"/containers/{_safe_reference(container_id)}/start")
 
     async def stop(self, container_id: str, *, timeout: int | None = None) -> None:
         params = {"t": str(timeout)} if timeout is not None else None
-        await self._post(f"/containers/{container_id}/stop", params=params)
+        await self._post(f"/containers/{_safe_reference(container_id)}/stop", params=params)
 
     async def restart(self, container_id: str, *, timeout: int | None = None) -> None:
         params = {"t": str(timeout)} if timeout is not None else None
-        await self._post(f"/containers/{container_id}/restart", params=params)
+        await self._post(
+            f"/containers/{_safe_reference(container_id)}/restart", params=params
+        )
 
     async def remove(self, container_id: str, *, force: bool = False) -> None:
         await self._delete(
-            f"/containers/{container_id}", params={"force": "1" if force else "0"}
+            f"/containers/{_safe_reference(container_id)}",
+            params={"force": "1" if force else "0"},
         )
 
     async def logs(self, container_id: str, *, tail: int = 200) -> str:
+        reference = _safe_reference(container_id)
         client = await self.client()
         try:
             response = await client.get(
-                f"/containers/{container_id}/logs",
+                f"/containers/{reference}/logs",
                 params={"stdout": "1", "stderr": "1", "tail": str(tail)},
             )
         except (httpx.HTTPError, OSError) as exc:
@@ -124,7 +143,7 @@ class DockerApiContainerEngine:
             raise EngineUnavailableError(
                 "Docker API error", status=response.status_code, body=response.text[:500]
             )
-        return response.text
+        return _decode_log_stream(response.content)
 
     # -- helpers ----------------------------------------------------------- #
     async def _get(self, path: str, params: dict[str, str] | None = None) -> Any:
@@ -220,6 +239,40 @@ class DockerApiContainerEngine:
         return ports
 
 
+def _decode_log_stream(payload: bytes) -> str:
+    """Decode the Docker logs payload.
+
+    Without a TTY the daemon answers with a multiplexed stream where every frame
+    starts with an 8-byte header (stream type + 3 pad bytes + big-endian length).
+    Containers created with ``tty: true`` return plain text instead, so we fall
+    back to the raw bytes whenever the framing does not line up.
+    """
+    if not payload:
+        return ""
+    # Containers created with ``tty: true`` return plain text: no valid stream
+    # type byte can lead such a stream, so bail out immediately.
+    if payload[0] not in (0, 1, 2):
+        return payload.decode("utf-8", errors="replace")
+    chunks: list[bytes] = []
+    offset = 0
+    total = len(payload)
+    while offset < total:
+        frame_type = payload[offset]
+        if frame_type not in (0, 1, 2) or offset + 8 > total:
+            chunks.append(payload[offset:])
+            break
+        size = int.from_bytes(payload[offset + 4 : offset + 8], "big")
+        start = offset + 8
+        end = start + size
+        if end > total:
+            # Truncated tail: keep what we can instead of dropping every frame.
+            chunks.append(payload[offset:])
+            break
+        chunks.append(payload[start:end])
+        offset = end
+    return b"".join(chunks).decode("utf-8", errors="replace")
+
+
 def _parse_timestamp(value: Any) -> datetime | None:
     """Docker returns either an epoch int or an RFC3339 nano-second string."""
     if value is None or value == "":
@@ -233,6 +286,8 @@ def _parse_timestamp(value: Any) -> datetime | None:
             head, _, tail = text.partition(".")
             digits = "".join(ch for ch in tail if ch.isdigit())[:6]
             text = f"{head}.{digits}" if digits else head
-        return datetime.fromisoformat(text)
+        parsed = datetime.fromisoformat(text)
     except ValueError:
         return None
+    # /containers/{id}/json omits the offset; the daemon always means UTC.
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)

@@ -1,0 +1,84 @@
+# LightPanel 的远程引擎部署：面板通过 Docker Engine API（HTTP）控制引擎，
+# 不挂 /var/run/docker.sock，也不做宿主机目录挂载。
+#
+# 使用： docker compose -f deploy/docker-compose.api.yml up -d
+#
+# 适用场景
+#   * Docker Desktop（Hyper-V / WSL2 后端）未开启文件共享，宿主机目录挂载会卡住
+#   * 面板要管理另一台机器上的引擎（把 DOCKER_API_HOST 改成那台机器的地址）
+#
+# 前置条件：引擎必须开放 TCP API，Docker Desktop 在
+#   设置 → General → "Expose daemon on tcp://localhost:2375 without TLS"
+# 注意：2375 是明文且无鉴权的管理接口，等价于宿主机 root，只能在内网/本机使用。
+
+# 项目名固定，避免面板把自己显示成 "deploy" 这样的目录名
+name: lightpanel
+
+services:
+  lightpanel:
+    image: lightpanel:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        # 国内网络构建时：NPM_REGISTRY=https://registry.npmmirror.com \
+        #                PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+        #                docker compose -f deploy/docker-compose.api.yml up -d --build
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    container_name: lightpanel
+    restart: unless-stopped
+    ports:
+      - "${LIGHTPANEL_PORT:-9000}:9000"
+    extra_hosts:
+      # 让容器能解析到宿主机（Linux 上 docker-compose.yml 的 socket 方案不需要这个）
+      - "host.docker.internal:host-gateway"
+    environment:
+      # 公网或不可信网络务必开启鉴权
+      LIGHTPANEL_SECURITY__ENABLED: "false"
+      # LIGHTPANEL_SECURITY__API_TOKEN: "change-me"
+      LIGHTPANEL_SERVER__PORT: "9000"
+      LIGHTPANEL_METRICS__CACHE_TTL: "2"
+      # 容器里的 psutil 只能看到容器 / Docker 虚拟机，看不到真实宿主机。
+      # 在宿主机上跑 `lightpanel-agent --host 0.0.0.0` 后，这里就会显示宿主机指标；
+      # 代理没起来时自动回落到容器指标，并在概览页顶部说明原因。
+      # 不想要宿主机指标就把 METRICS_AGENT_URL 设为空串。
+      LIGHTPANEL_METRICS__REMOTE_URL: "${METRICS_AGENT_URL-http://host.docker.internal:9101/metrics}"
+      LIGHTPANEL_METRICS__REMOTE_TOKEN: "${METRICS_AGENT_TOKEN:-}"
+      # 控制方式：走 Engine API，而不是本地 socket
+      LIGHTPANEL_DOCKER__MODE: "api"
+      LIGHTPANEL_DOCKER__HOST: "http://${DOCKER_API_HOST:-host.docker.internal}:${DOCKER_API_PORT:-2375}"
+      # compose 子进程用同一个引擎
+      DOCKER_HOST: "tcp://${DOCKER_API_HOST:-host.docker.internal}:${DOCKER_API_PORT:-2375}"
+      LIGHTPANEL_CATALOG__PATH: "/data/catalog.yaml"
+      LIGHTPANEL_CATALOG__EXAMPLE_FILE: "/app/data-examples/catalog.example.yaml"
+      LIGHTPANEL_COMMANDS__EXTRA_FILE: "/data/commands.yaml"
+      LIGHTPANEL_COMMANDS__EXAMPLE_FILE: "/app/data-examples/commands.yaml"
+      # 容器里跑 compose 会把 ./src:/app 这类相对挂载解析成容器内路径，宿主机
+      # docker 只能建个空目录顶上（容器起来了、代码没挂上，还不报错）。所以默认
+      # 交给宿主机上的 lightpanel-agent 执行：它和 docker 守护进程共用同一个文件系统。
+      # 代理没起来时栈操作会报“连不上宿主机代理”，可用 COMPOSE_RUNNER=local 退回本机执行
+      # （仅适合纯镜像栈，带源码挂载的栈会静默出错）。
+      LIGHTPANEL_COMPOSE__RUNNER: "${COMPOSE_RUNNER:-agent}"
+      LIGHTPANEL_COMPOSE__AGENT_URL: "${COMPOSE_AGENT_URL-http://host.docker.internal:9101}"
+      LIGHTPANEL_COMPOSE__AGENT_TOKEN: "${METRICS_AGENT_TOKEN:-}"
+      # local 模式下的扫描目录（容器内可见的路径）；agent 模式下由宿主机代理扫描
+      LIGHTPANEL_COMPOSE__SEARCH_PATHS: '["/data"]'
+      LIGHTPANEL_LOGGING__LEVEL: "INFO"
+    volumes:
+      # 命名卷代替宿主机目录绑定，磁盘不足时同样是宿主机的存储
+      - lightpanel_data:/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/api/health').read()"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  lightpanel_data:
+    name: lightpanel_data

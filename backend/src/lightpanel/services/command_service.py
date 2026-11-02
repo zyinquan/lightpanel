@@ -100,9 +100,18 @@ class CommandService:
         argv.extend(str(a) for a in extra_args)
         argv = list(self.policy.validate_argv(argv))
 
-        cwd = self.policy.validate_cwd(
-            definition.working_dir or context.get("working_dir") or None
-        )
+        # 定义里显式写的 working_dir 是用户配置，必须有效；目标自带的路径来自
+        # 引擎侧（可能是另一台主机 / 容器外的路径），只做尽力而为
+        if definition.working_dir:
+            cwd = self.policy.validate_cwd(definition.working_dir)
+        else:
+            raw_cwd = context.get("working_dir") or None
+            cwd = self.policy.resolve_cwd(raw_cwd)
+            if raw_cwd and not cwd:
+                logger.info(
+                    "target working directory is not usable here; running without cwd",
+                    extra={"command": definition.id, "working_dir": raw_cwd},
+                )
         effective_timeout = self.policy.resolve_timeout(timeout or definition.timeout)
         logger.info(
             "running custom command",

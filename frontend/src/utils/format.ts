@@ -102,6 +102,21 @@ export function colorFromString(input: string, saturation = 62, lightness = 58):
   return `hsl(${hash % 360}, ${saturation}%, ${lightness}%)`
 }
 
+/**
+ * 归一化软件条目的跳转地址。
+ *
+ * 用户常常只填 `nas:8096` / `192.168.1.2:5001`，浏览器会把这种值当成**相对路径**
+ * 拼到当前页面上，点开只会回到面板本身，看起来就是"没反应"。这里统一补齐协议；
+ * 同时把 `javascript:` / `data:` 之类的危险协议直接判为不可用。
+ */
+export function normalizeUrl(raw: string | null | undefined): string {
+  const value = (raw ?? '').trim()
+  if (!value) return ''
+  if (/^(javascript|data|vbscript|file):/i.test(value)) return ''
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return value
+  return `http://${value.replace(/^\/+/, '')}`
+}
+
 export function initials(name: string): string {
   const cleaned = name.trim().replace(/[^\p{L}\p{N}]+/gu, ' ')
   const parts = cleaned.split(/\s+/).filter(Boolean)

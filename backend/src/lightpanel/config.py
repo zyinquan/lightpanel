@@ -72,6 +72,12 @@ class MetricsConfig(_Base):
         default_factory=lambda: ["squashfs", "tmpfs", "devtmpfs", "overlay", "iso9660"]
     )
     network_interfaces: list[str] = Field(default_factory=list)
+    # 宿主机指标代理：面板跑在容器里时，本地 psutil 只能看到容器（Windows / macOS
+    # 上是 Docker Desktop 的 Linux 虚拟机）。填上 lightpanel-agent 的地址，就能显示
+    # 真实宿主机指标；取不到时自动回落到本地，并在快照 hint 里说明。
+    remote_url: str = ""
+    remote_timeout: float = Field(default=2.0, gt=0)
+    remote_token: str = ""
 
 
 class DockerConfig(_Base):
@@ -91,6 +97,13 @@ class ComposeConfig(_Base):
     search_paths: list[str] = Field(default_factory=lambda: ["/opt", "/srv", "/home", "/data"])
     max_depth: int = Field(default=3, ge=1, le=8)
     timeout: float = Field(default=600.0, gt=0)
+    # local: 在本进程里跑 docker compose（要求面板与项目文件在同一文件系统）
+    # agent: 交给宿主机上的 lightpanel-agent 跑（面板在容器里时用这个，
+    #        否则 compose 文件里的相对 bind mount 会被解析成容器内路径）
+    runner: Literal["local", "agent"] = "local"
+    agent_url: str = ""
+    agent_token: str = ""
+    agent_timeout: float = Field(default=600.0, gt=0)
 
     def base_argv(self) -> list[str]:
         argv = [self.binary]

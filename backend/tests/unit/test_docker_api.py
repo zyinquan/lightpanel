@@ -5,7 +5,10 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from lightpanel.adapters.docker.engine import DockerApiContainerEngine
+from lightpanel.adapters.docker.engine import (
+    DockerApiContainerEngine,
+    _decode_log_stream,
+)
 from lightpanel.config import DockerConfig
 from lightpanel.domain.errors import EngineUnavailableError, NotFoundError
 from lightpanel.domain.models import ContainerState
@@ -132,3 +135,69 @@ async def test_logs_and_inspect():
 async def test_empty_body_is_tolerated():
     engine = engine_for(lambda request: httpx.Response(204))
     assert await engine.list_containers() == []
+
+
+def _frame(stream: int, payload: bytes) -> bytes:
+    return bytes([stream, 0, 0, 0]) + len(payload).to_bytes(4, "big") + payload
+
+
+def test_decode_log_stream_strips_frame_headers():
+    body = _frame(1, b"line one\n") + _frame(2, b"oops\n") + _frame(1, b"line two\n")
+    assert _decode_log_stream(body) == "line one\noops\nline two\n"
+
+
+def test_decode_log_stream_passes_plain_text_through():
+    # Containers with tty: true answer with an unframed byte stream.
+    assert _decode_log_stream(b"raw tty output\n") == "raw tty output\n"
+    assert _decode_log_stream(b"") == ""
+
+
+def test_decode_log_stream_falls_back_on_truncated_frame():
+    body = _frame(1, b"complete\n") + _frame(1, b"cut")[:-2]
+    assert _decode_log_stream(body).startswith("complete\n")
+
+
+async def test_logs_decodes_multiplexed_stream():
+    body = _frame(1, b"server started\n") + _frame(2, b"warning: low disk\n")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/logs"):
+            return httpx.Response(200, content=body)
+        return httpx.Response(200, json=CONTAINER_ROW)
+
+    engine = engine_for(handler)
+    assert await engine.logs("web") == "server started\nwarning: low disk\n"
+
+
+def test_parse_timestamp_assumes_utc_for_naive_values():
+    from lightpanel.adapters.docker.engine import _parse_timestamp
+
+    assert _parse_timestamp("2026-01-01T10:00:00.123456789Z") is not None
+    naive = _parse_timestamp("2026-01-01T10:00:00.123456")
+    assert naive is not None and naive.tzinfo is not None
+    assert naive.utcoffset().total_seconds() == 0
+    epoch = _parse_timestamp(1767225600)
+    assert epoch is not None and epoch.utcoffset().total_seconds() == 0
+    assert _parse_timestamp(None) is None
+    assert _parse_timestamp("") is None
+
+
+@pytest.mark.parametrize("bad", ["lpdemo; rm -rf /", "../version", "a b", "", "x/y/json"])
+async def test_container_reference_is_validated(bad):
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        return httpx.Response(200, json=CONTAINER_ROW)
+
+    engine = engine_for(handler)
+    with pytest.raises(NotFoundError):
+        await engine.get_container(bad)
+    with pytest.raises(NotFoundError):
+        await engine.start(bad)
+    with pytest.raises(NotFoundError):
+        await engine.logs(bad)
+
+
+async def test_get_container_tolerates_non_object_body():
+    # 空的 / 非 JSON 响应不应该以 AttributeError 冒成 500
+    engine = engine_for(lambda request: httpx.Response(200, content=b""))
+    with pytest.raises(NotFoundError):
+        await engine.get_container("web")

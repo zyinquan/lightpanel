@@ -74,6 +74,12 @@ class SystemSnapshot:
     disks: list[DiskMetrics] = field(default_factory=list)
     network: NetworkMetrics | None = None
     collected_at: datetime | None = None
+    # 指标口径。scope: host = 真实宿主机；container = 面板所在的容器 / Docker 虚拟机。
+    # 容器里 psutil 只能看到容器（或 Docker Desktop 的 Linux VM），不是用户的机器，
+    # 所以在数据模型里把这个事实显式带出来，避免 UI 误读。
+    scope: str = "host"
+    source: str = "psutil"
+    hint: str | None = None
 
 
 # --------------------------------------------------------------------------- #

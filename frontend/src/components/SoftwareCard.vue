@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { SoftwareEntry } from '@/api/types'
-import { colorFromString, initials } from '@/utils/format'
+import { colorFromString, initials, normalizeUrl } from '@/utils/format'
+import { pushToast } from '@/composables/useToast'
 
 const props = defineProps<{
   entry: SoftwareEntry
@@ -11,19 +12,54 @@ const props = defineProps<{
 const emit = defineEmits<{ tag: [string]; edit: [SoftwareEntry]; remove: [SoftwareEntry] }>()
 
 const accent = computed(() => props.entry.color || colorFromString(props.entry.name))
-const mark = computed(() => initials(props.entry.name))
-const href = computed(() => props.entry.url || '')
+/** 图标字符优先，留空才回落到名称首字母。 */
+const mark = computed(() => props.entry.icon?.trim() || initials(props.entry.name))
+const href = computed(() => normalizeUrl(props.entry.url))
 const isActive = (tag: string) => props.activeTags?.includes(tag) ?? false
+
+/**
+ * 自己接管开窗，而不是只依赖 `target="_blank"`：
+ * 面板跑在沙箱化内嵌预览里时，新窗口会被静默丢弃，看上去就是"点了没反应"。
+ */
+async function openEntry(event: MouseEvent) {
+  const url = href.value
+  if (!url) return
+  // 带修饰键或非左键时交还给浏览器原生行为（新窗口/新标签/下载）。
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
+  event.preventDefault()
+  const win = window.open(url, '_blank')
+  if (win) {
+    win.opener = null
+    return
+  }
+  // 弹窗被拦截：至少把地址交到用户手里。
+  const copied = await copyText(url)
+  pushToast(
+    copied ? `新窗口被拦截，链接已复制：${url}` : `新窗口被拦截，请手动打开：${url}`,
+    'warning',
+  )
+}
+
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (!navigator.clipboard?.writeText) return false
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    return false
+  }
+}
 </script>
 
 <template>
-  <article class="software card">
+  <article class="software card" :class="{ 'software--static': !href }">
     <a
       class="software__body"
       :href="href || undefined"
       :target="href ? '_blank' : undefined"
       rel="noreferrer noopener"
-      :class="{ 'software__body--static': !href }"
+      :title="href || entry.name"
+      @click="openEntry"
     >
       <span class="software__icon" :style="{ background: accent }">{{ mark }}</span>
       <span class="software__main">
@@ -56,6 +92,7 @@ const isActive = (tag: string) => props.activeTags?.includes(tag) ?? false
 
 <style scoped>
 .software {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -75,8 +112,16 @@ const isActive = (tag: string) => props.activeTags?.includes(tag) ?? false
   min-width: 0;
 }
 
-.software__body--static {
-  cursor: default;
+/* 整卡命中区：透明覆盖层把卡片的空白区域也变成链接，避免"只有标题行可点"。 */
+.software__body::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.software--static .software__body::after {
+  content: none;
 }
 
 .software__icon {
@@ -106,6 +151,13 @@ const isActive = (tag: string) => props.activeTags?.includes(tag) ?? false
 .software__desc {
   font-size: 12px;
   color: var(--text-dim);
+}
+
+/* 标签与操作按钮浮在整卡命中区之上，点击不会被链接吞掉。 */
+.software__tags,
+.software__actions {
+  position: relative;
+  z-index: 1;
 }
 
 .software__tags {

@@ -13,14 +13,17 @@ from pathlib import Path
 
 from .adapters.catalog.memory_repository import InMemoryCatalogRepository
 from .adapters.catalog.yaml_repository import YamlCatalogRepository
-from .adapters.docker.compose import ComposeStackEngine
+from .adapters.docker.agent_compose import AgentComposeBackend
+from .adapters.docker.compose import ComposeBackend, ComposeStackEngine, LocalComposeBackend
 from .adapters.docker.engine import DockerApiContainerEngine
 from .adapters.docker.fake_engine import FakeContainerEngine
-from .adapters.docker.null_engine import NullContainerEngine
+from .adapters.docker.null_engine import NO_ENDPOINT_REASON, NullContainerEngine
 from .adapters.executor.fake_executor import FakeCommandExecutor
 from .adapters.executor.subprocess_executor import SubprocessCommandExecutor
 from .adapters.metrics.fake_provider import FakeMetricsProvider
+from .adapters.metrics.fallback_provider import FallbackMetricsProvider
 from .adapters.metrics.psutil_provider import PsutilMetricsProvider
+from .adapters.metrics.remote_provider import RemoteMetricsProvider
 from .api.security import TokenAuth
 from .config import AppConfig
 from .domain.ports import CatalogRepository, CommandExecutor, ContainerEngine, MetricsProvider
@@ -41,7 +44,6 @@ EXAMPLE_CATALOG_CANDIDATES = (
     # 容器镜像把示例放在 /app/data-examples（见 deploy/Dockerfile）
     "/app/data-examples/catalog.example.yaml",
 )
-
 
 
 @dataclass
@@ -78,7 +80,9 @@ def build_container(config: AppConfig) -> AppContainer:
     catalog_repository = _build_catalog_repository(config)
     container_engine = _build_container_engine(config)
     executor = _build_executor(config)
-    stack_engine = ComposeStackEngine(container_engine, executor, config.compose)
+    stack_engine = ComposeStackEngine(
+        container_engine, _build_compose_backend(config, executor), config.compose
+    )
 
     policy = CommandPolicy(
         allowed_binaries=config.commands.allowed_binaries,
@@ -117,7 +121,17 @@ def build_container(config: AppConfig) -> AppContainer:
 def _build_metrics_provider(config: AppConfig) -> MetricsProvider:
     if config.metrics.provider == "fake":
         return FakeMetricsProvider(config.metrics)
-    return PsutilMetricsProvider(config.metrics)
+    local = PsutilMetricsProvider(config.metrics)
+    if not config.metrics.remote_url:
+        return local
+    # 配置了宿主机代理：优先用它，连不上就回落到本地 psutil（并在 hint 里说清楚）。
+    remote = RemoteMetricsProvider(
+        config.metrics.remote_url,
+        timeout=config.metrics.remote_timeout,
+        token=config.metrics.remote_token,
+    )
+    logger.info("metrics: 宿主机代理 %s", config.metrics.remote_url)
+    return FallbackMetricsProvider(remote, local)
 
 
 def _build_catalog_repository(config: AppConfig) -> CatalogRepository:
@@ -151,7 +165,7 @@ def _build_container_engine(config: AppConfig) -> ContainerEngine:
         "Docker features will report as unavailable",
         config.docker.socket,
     )
-    return NullContainerEngine()
+    return NullContainerEngine(NO_ENDPOINT_REASON)
 
 
 def _build_executor(config: AppConfig) -> CommandExecutor:
@@ -161,6 +175,26 @@ def _build_executor(config: AppConfig) -> CommandExecutor:
         allowed_binaries=config.commands.allowed_binaries,
         default_timeout=config.commands.default_timeout,
     )
+
+
+def _build_compose_backend(config: AppConfig, executor: CommandExecutor) -> ComposeBackend:
+    """Pick where ``docker compose`` runs.
+
+    ``agent`` is the only correct choice when the panel itself runs in a
+    container: compose resolves relative bind mounts against its own filesystem,
+    so running it inside the container makes Docker create empty directories on
+    the host instead of mounting the user's code.
+    """
+    compose = config.compose
+    if compose.runner == "agent":
+        if compose.agent_url:
+            return AgentComposeBackend(
+                compose.agent_url,
+                token=compose.agent_token,
+                timeout=compose.agent_timeout,
+            )
+        logger.warning("compose.runner=agent 但未配置 compose.agent_url，回落到在本地执行 compose")
+    return LocalComposeBackend(executor, compose)
 
 
 def load_extra_command_definitions(path: str) -> list:

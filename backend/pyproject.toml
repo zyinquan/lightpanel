@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "lightpanel"
 version = "0.1.0"
 description = "Lightweight self-hosted server panel: system status, software catalog with tags, Docker & Compose control with custom commands."
-readme = "../README.md"
+readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "lightpanel contributors" }]
@@ -43,6 +43,7 @@ Documentation = "https://github.com/example/lightpanel/blob/main/docs/architectu
 
 [project.scripts]
 lightpanel = "lightpanel.__main__:main"
+lightpanel-agent = "lightpanel.agent:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

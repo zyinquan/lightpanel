@@ -7,8 +7,12 @@ import pytest
 from lightpanel import composition
 from lightpanel.adapters.catalog.memory_repository import InMemoryCatalogRepository
 from lightpanel.adapters.catalog.yaml_repository import YamlCatalogRepository
+from lightpanel.adapters.docker.agent_compose import AgentComposeBackend
+from lightpanel.adapters.docker.compose import LocalComposeBackend
 from lightpanel.adapters.docker.fake_engine import FakeContainerEngine
 from lightpanel.adapters.docker.null_engine import NullContainerEngine
+from lightpanel.adapters.metrics.fallback_provider import FallbackMetricsProvider
+from lightpanel.adapters.metrics.psutil_provider import PsutilMetricsProvider
 from lightpanel.config import load_config
 
 
@@ -148,3 +152,78 @@ def test_docker_api_modes(tmp_path, mode):
         _config(tmp_path, docker={"mode": mode, "host": "unix:///nonexistent.sock"})
     )
     assert type(container.container_engine).__name__ == "DockerApiContainerEngine"
+
+
+def test_missing_endpoint_explains_how_to_fix_it(tmp_path):
+    """auto 模式但看不到 socket：降级原因要说清怎么修，不能只说"已禁用"。"""
+    container = composition.build_container(
+        _config(
+            tmp_path,
+            docker={"mode": "auto", "socket": str(tmp_path / "no-socket-here.sock"), "host": ""},
+        )
+    )
+    assert isinstance(container.container_engine, NullContainerEngine)
+    assert "docker.sock" in container.container_engine.reason
+    assert "docker.mode = api" in container.container_engine.reason
+
+
+def test_disabled_engine_reason_points_at_config(tmp_path):
+    container = composition.build_container(_config(tmp_path, docker={"enabled": False}))
+    assert "docker.enabled" in container.container_engine.reason
+
+
+def test_metrics_remote_url_builds_fallback_chain(tmp_path):
+    container = composition.build_container(
+        _config(
+            tmp_path,
+            metrics={
+                "provider": "psutil",
+                "remote_url": "http://host.docker.internal:9101/metrics",
+                "remote_token": "s3cret",
+                "cache_ttl": 0,
+            },
+        )
+    )
+    provider = container.system.provider
+    assert isinstance(provider, FallbackMetricsProvider)
+    assert provider.primary.name == "agent"
+    assert provider.target.endswith("/metrics")
+    assert provider.primary._token == "s3cret"
+    assert isinstance(provider.fallback, PsutilMetricsProvider)
+
+
+def test_metrics_without_remote_url_stays_local(tmp_path):
+    container = composition.build_container(
+        _config(tmp_path, metrics={"provider": "psutil", "cache_ttl": 0})
+    )
+    assert isinstance(container.system.provider, PsutilMetricsProvider)
+
+
+def test_compose_runner_agent_uses_host_agent(tmp_path):
+    container = composition.build_container(
+        _config(
+            tmp_path,
+            compose={
+                "runner": "agent",
+                "agent_url": "http://host.docker.internal:9101",
+                "agent_token": "s3cret",
+            },
+        )
+    )
+    engine = container.stacks.engine
+    assert isinstance(engine.backend, AgentComposeBackend)
+    assert engine.name == "docker-compose@agent"
+    assert engine.backend.base_url == "http://host.docker.internal:9101"
+
+
+def test_compose_runner_agent_without_url_falls_back_to_local(tmp_path, caplog):
+    container = composition.build_container(
+        _config(tmp_path, compose={"runner": "agent", "agent_url": ""})
+    )
+    assert isinstance(container.stacks.engine.backend, LocalComposeBackend)
+    assert "compose.agent_url" in caplog.text
+
+
+def test_compose_runner_defaults_to_local(tmp_path):
+    container = composition.build_container(_config(tmp_path))
+    assert isinstance(container.stacks.engine.backend, LocalComposeBackend)

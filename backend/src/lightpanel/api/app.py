@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .. import __version__
 from ..composition import AppContainer, build_container
@@ -23,6 +24,34 @@ STATIC_CANDIDATES = (
     Path("frontend/dist"),
     Path("/app/frontend/dist"),
 )
+
+
+class SPAStaticFiles(StaticFiles):
+    """静态托管 + history 路由回退。
+
+    前端用 ``createWebHistory``，直接刷新 ``/containers`` 时磁盘上并没有这个文件；
+    这里把「无扩展名且不是 API 前缀」的 404 回退到 ``index.html``，交给路由处理。
+    """
+
+    def __init__(self, *, directory: str, api_prefix: str = "/api", **kwargs) -> None:
+        super().__init__(directory=directory, html=True, **kwargs)
+        self.api_prefix = api_prefix.rstrip("/") or "/api"
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code != 404 or not self._should_fallback(path):
+                raise
+            return await super().get_response("index.html", scope)
+
+    def _should_fallback(self, path: str) -> bool:
+        # Windows 下 StaticFiles 会把分隔符换成反斜杠，先归一化再判断
+        cleaned = "/" + path.replace("\\", "/").lstrip("/")
+        if cleaned == self.api_prefix or cleaned.startswith(self.api_prefix + "/"):
+            return False
+        # 缺失的静态资源仍然返回 404，避免把 HTML 当成 js/css 返回
+        return not Path(cleaned).suffix
 
 
 def create_app(
@@ -90,18 +119,22 @@ def create_app(
     app.include_router(routers.commands, prefix=prefix, dependencies=protected)
     app.include_router(routers.auth, prefix=prefix)
 
-    _mount_frontend(app)
+    _mount_frontend(app, config.server.api_prefix)
     return app
 
 
-def _mount_frontend(app: FastAPI) -> None:
+def _mount_frontend(app: FastAPI, api_prefix: str = "/api") -> None:
     """Serve the built SPA when it exists; the API works without it."""
     for candidate in STATIC_CANDIDATES:
         if candidate.is_dir() and (candidate / "index.html").is_file():
-            app.mount("/", StaticFiles(directory=str(candidate), html=True), name="frontend")
+            app.mount(
+                "/",
+                SPAStaticFiles(directory=str(candidate), api_prefix=api_prefix),
+                name="frontend",
+            )
             logger.info("serving frontend from %s", candidate)
             return
     logger.info("frontend build not found; API-only mode")
 
 
-__all__ = ["create_app"]
+__all__ = ["SPAStaticFiles", "create_app"]

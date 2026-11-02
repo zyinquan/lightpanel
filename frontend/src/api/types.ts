@@ -58,6 +58,12 @@ export interface SystemSnapshot {
   disks: DiskInfo[]
   network: NetworkInfo | null
   collected_at: string | null
+  /** host = 真实宿主机；container = 面板所在容器（或 Docker 虚拟机） */
+  scope: 'host' | 'container'
+  /** 指标来源适配器：psutil / agent */
+  source: string
+  /** 口径说明，容器内运行时用来说明"为什么不是宿主机" */
+  hint: string | null
 }
 
 export interface MetricSample {

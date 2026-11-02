@@ -1,6 +1,6 @@
 # LightPanel
 
-轻量级自托管服务器面板 —— 对标 SunPanel，用最小的依赖做三件事：**看服务器状态**、**管软件标签墙**、**控 Docker 与 Docker Compose（含自定义命令）**。
+轻量级自托管服务器面板，相似软件 SunPanel，dockge等，虽然这些软件真的很棒，但是有些个人习惯的功能不太习惯，故而有了LightPanel。用最小的依赖做三件事：**看服务器状态**、**管软件标签墙**、**控 Docker 与 Docker Compose（含自定义命令）**。
 
 后端 Python + FastAPI，前端 Vue 3 + TypeScript + Vite，整体按**端口与适配器（六边形）**架构组织：业务服务只依赖抽象协议，Docker / 指标 / 存储 / 命令执行器全部可插拔，新增实现不需要改动既有代码（开闭原则）。
 
@@ -10,10 +10,10 @@
 
 | 能力 | 说明 |
 | --- | --- |
-| **服务器状态** | CPU（含每核、负载、频率）、内存与 Swap、磁盘分区、网络收发、启动时间；带快照缓存与趋势历史 |
+| **服务器状态** | CPU（含每核、负载、频率）、内存与 Swap、磁盘分区、网络收发、启动时间；带快照缓存与趋势历史；概览页明确标注「宿主机指标 / 容器内指标」 |
 | **软件标签** | 软件条目的增删改查、标签过滤（任意命中 / 全部命中）、搜索、自定义排序、主题色与图标 |
 | **容器控制** | 启动 / 停止 / 重启 / 暂停 / 继续 / 删除，日志查看，按名称 / 镜像 / 状态 / 项目筛选 |
-| **Compose 编排** | 自动发现 `docker-compose.yml`，支持 up / down / restart / stop / pull / build，附加参数透传 |
+| **Compose 编排** | 自动发现 `docker-compose.yml`，支持 up（`-d`）/ down / restart / pull，附加参数透传；面板跑在容器里时可交给宿主机代理执行，避免相对挂载路径错位 |
 | **自定义命令** | YAML 声明式命令模板（`{id}` `{name}` 等占位符渲染），危险命令需确认，临时命令受白名单与参数守卫约束 |
 | **安全** | 可选单令牌鉴权；命令执行有二进制白名单、shell 解释器拦截、危险参数拦截与超时控制 |
 
@@ -57,6 +57,22 @@ docker compose up -d                     # 详见 deploy/README.md
 ### 无 Docker 环境也能跑
 
 把 `docker.mode` 设为 `fake`、`metrics.provider` 设为 `fake`，面板会使用内存中的假引擎与假指标，界面与接口行为完整可演示——这也是 CI 与本地开发默认采用的方式。
+
+### 面板在容器里，但想看宿主机的真实指标
+
+容器里的 psutil 只能看到容器（Windows / macOS 上更只是 Docker Desktop 的 Linux 虚拟机）。
+在宿主机上跑一个自带的轻量代理，面板按 HTTP 取数即可：
+
+```bash
+# 宿主机（和面板用同一套代码，不需要额外依赖）
+python -m lightpanel.agent --host 0.0.0.0 --port 9101 [--token s3cret]
+
+# 面板侧
+LIGHTPANEL_METRICS__REMOTE_URL=http://host.docker.internal:9101/metrics
+```
+
+概览页顶部会显示「宿主机指标 · 来自 <主机名> · 采集自宿主机代理」；代理没起来时自动回落到
+容器指标，并把原因写在顶部提示条里。详见 [docs/configuration.md](docs/configuration.md#metrics)。
 
 ```bash
 LIGHTPANEL_DOCKER__MODE=fake LIGHTPANEL_METRICS__PROVIDER=fake python -m lightpanel

@@ -79,3 +79,12 @@ def test_ad_hoc_can_be_disabled():
 def test_open_allow_list_accepts_anything():
     policy = CommandPolicy(allowed_binaries=())
     assert policy.validate_argv(["/bin/true"])[0] == "/bin/true"
+
+
+def test_resolve_cwd_is_best_effort(policy, tmp_path):
+    """目标自带的 working_dir 来自引擎侧，不可用时静默丢弃而不是拒绝命令。"""
+    assert policy.resolve_cwd(None) is None
+    assert policy.resolve_cwd("") is None
+    assert policy.resolve_cwd("relative/path") is None
+    assert policy.resolve_cwd(os.path.join(str(tmp_path), "missing")) is None
+    assert policy.resolve_cwd(str(tmp_path)) == str(tmp_path)

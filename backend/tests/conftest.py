@@ -11,12 +11,12 @@ from fastapi.testclient import TestClient
 
 from lightpanel.adapters.catalog.memory_repository import InMemoryCatalogRepository
 from lightpanel.adapters.catalog.yaml_repository import YamlCatalogRepository
-from lightpanel.adapters.docker.compose import ComposeStackEngine
+from lightpanel.adapters.docker.compose import ComposeStackEngine, LocalComposeBackend
 from lightpanel.adapters.docker.fake_engine import FakeContainerEngine
 from lightpanel.adapters.executor.fake_executor import FakeCommandExecutor
 from lightpanel.adapters.metrics.fake_provider import FakeMetricsProvider
 from lightpanel.api.app import create_app
-from lightpanel.config import AppConfig, load_config
+from lightpanel.config import AppConfig, ComposeConfig, load_config
 from lightpanel.domain.clock import FixedClock
 from lightpanel.domain.models import CommandDefinition, CommandKind, CommandTarget, SoftwareEntry
 from lightpanel.services.catalog_service import CatalogService
@@ -53,7 +53,8 @@ def executor() -> FakeCommandExecutor:
 
 @pytest.fixture
 def stack_engine(container_engine, executor) -> ComposeStackEngine:
-    return ComposeStackEngine(container_engine, executor)
+    settings = ComposeConfig()
+    return ComposeStackEngine(container_engine, LocalComposeBackend(executor, settings), settings)
 
 
 @pytest.fixture

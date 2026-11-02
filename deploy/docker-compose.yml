@@ -1,12 +1,21 @@
 # LightPanel 自身的最小部署。
 # 使用： docker compose -f deploy/docker-compose.yml up -d
 
+# 项目名固定，避免面板把自己显示成 "deploy" 这样的目录名
+name: lightpanel
+
 services:
   lightpanel:
     image: lightpanel:latest
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      args:
+        # 国内网络构建时：NPM_REGISTRY=https://registry.npmmirror.com \
+        #                PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+        #                docker compose -f deploy/docker-compose.yml up -d --build
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
     container_name: lightpanel
     restart: unless-stopped
     ports:

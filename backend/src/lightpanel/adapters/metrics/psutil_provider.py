@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import platform
 import socket
 from datetime import UTC, datetime
@@ -20,6 +21,12 @@ from ...domain.models import (
     SystemSnapshot,
 )
 from ...domain.ports import Clock, MetricsProvider
+from .environment import runtime_scope
+
+CONTAINER_HINT = (
+    "面板运行在容器内，指标来自容器（或 Docker 虚拟机），并非宿主机。"
+    "在宿主机上启动 lightpanel-agent，并把 metrics.remote_url 指过去即可显示宿主机指标。"
+)
 
 
 class PsutilMetricsProvider:
@@ -29,6 +36,8 @@ class PsutilMetricsProvider:
         self.settings = settings or MetricsConfig()
         self._clock = clock or SystemClock()
         self._primed = False
+        # 进程所在环境固定，探测一次即可。
+        self._scope = runtime_scope()
 
     @property
     def name(self) -> str:
@@ -57,6 +66,9 @@ class PsutilMetricsProvider:
             disks=disks,
             network=network,
             collected_at=datetime.now(UTC),
+            scope=self._scope,
+            source="psutil",
+            hint=CONTAINER_HINT if self._scope == "container" else None,
         )
 
     def _host_info(self) -> HostInfo:
@@ -122,6 +134,10 @@ class PsutilMetricsProvider:
             if wanted and partition.mountpoint not in wanted:
                 continue
             if partition.mountpoint in seen:
+                continue
+            # 容器里 /etc/hostname、/etc/hosts、/etc/resolv.conf 是单文件挂载，
+            # psutil 会把它们列成"分区"，但当成磁盘展示毫无意义
+            if not os.path.isdir(partition.mountpoint):
                 continue
             try:
                 usage = psutil.disk_usage(partition.mountpoint)
