@@ -400,6 +400,13 @@ step_stop() {
 
 # ---------------------------------------------------------------- 分发
 
+# `all` 的最后一步是装 systemd 单元，非 root 就没法完成。提前挡掉，
+# 免得先把几分钟的依赖安装跑完，才在最后一步失败。
+if [ "$CMD" = "all" ] && ! is_root; then
+  die "「all」包含安装 systemd 服务，需要 root：sudo $0 all
+只想准备运行环境：$0 deps && $0 frontend && $0 config && $0 data"
+fi
+
 case "$CMD" in
   all)
     step_deps
