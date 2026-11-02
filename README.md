@@ -47,32 +47,37 @@ python -m lightpanel -c /etc/lightpanel/config.yaml
 
 后端检测到 `frontend/dist/index.html` 存在时会自动挂载 SPA，无需 Nginx。
 
-### 3. Docker 部署
+### 3. 生产部署：两种方式，选一种
 
-```bash
-cd deploy
-docker compose up -d                     # 详见 deploy/README.md
-```
+| 方式 | 一行命令 | 适用 | 默认端口 |
+| --- | --- | --- | --- |
+| **宿主机直跑**（推荐单机） | `sudo ./deploy/install-host.sh` | 面板管的栈就在本机 Linux 上 | 9001 |
+| **容器化** | `docker compose -f deploy/docker-compose.yml up -d --build` | 有 Docker、要隔离、或管远程引擎 | 9000 |
+
+两者的差别、前置条件、分步安装、故障排查都在 **[部署指南](deploy/README.md)**，那里按方案分章写，照着做完即可。
 
 ### 无 Docker 环境也能跑
 
 把 `docker.mode` 设为 `fake`、`metrics.provider` 设为 `fake`，面板会使用内存中的假引擎与假指标，界面与接口行为完整可演示——这也是 CI 与本地开发默认采用的方式。
 
-### 面板在容器里，但想看宿主机的真实指标
+### 面板在容器里，但想看宿主机的真实指标 / 想管带源码挂载的栈
 
-容器里的 psutil 只能看到容器（Windows / macOS 上更只是 Docker Desktop 的 Linux 虚拟机）。
-在宿主机上跑一个自带的轻量代理，面板按 HTTP 取数即可：
+容器里的 psutil 看不到全机网络和磁盘，`docker compose` 也会把 `./src:/app` 解析成容器内路径。在宿主机上跑一个自带的小代理（agent）即可同时解决这两件事：
 
 ```bash
 # 宿主机（和面板用同一套代码，不需要额外依赖）
-python -m lightpanel.agent --host 0.0.0.0 --port 9101 [--token s3cret]
+python -m lightpanel.agent --host 0.0.0.0 --port 9101 \
+  --stacks-root /opt/stacks --max-depth 4 [--token s3cret]
 
 # 面板侧
 LIGHTPANEL_METRICS__REMOTE_URL=http://host.docker.internal:9101/metrics
+LIGHTPANEL_COMPOSE__RUNNER=agent
 ```
 
 概览页顶部会显示「宿主机指标 · 来自 <主机名> · 采集自宿主机代理」；代理没起来时自动回落到
-容器指标，并把原因写在顶部提示条里。详见 [docs/configuration.md](docs/configuration.md#metrics)。
+容器指标，并把原因写在顶部提示条里。详见 [部署指南 · B.4](deploy/README.md#b4-可选件lightpanel-agent)。
+
+> 如果面板本来就跑在宿主机上，**不需要 agent**——直接走方案 A。
 
 ```bash
 LIGHTPANEL_DOCKER__MODE=fake LIGHTPANEL_METRICS__PROVIDER=fake python -m lightpanel
@@ -133,7 +138,7 @@ lightpanel/
 - [API 文档](docs/api.md) —— 端点、参数、响应与错误码
 - [开发指南](docs/development.md) —— 环境搭建、目录约定、如何新增适配器
 - [测试指南](docs/testing.md) —— 测试策略、运行方式、覆盖率
-- [部署指南](deploy/README.md) —— Docker、反向代理、安全建议
+- [部署指南](deploy/README.md) —— 宿主机直跑 / 容器化两套方案、反向代理、备份与故障排查
 
 ---
 

@@ -1,4 +1,4 @@
-.PHONY: help install dev fe be test lint fmt build docker clean agent
+.PHONY: help install dev fe be test lint fmt build docker clean agent host host-status
 
 PYTHON ?= python
 NPM    ?= npm
@@ -41,6 +41,12 @@ docker: ## 构建并启动容器
 
 agent: ## 在宿主机启动代理（指标 + compose；STACKS_ROOT 栈根目录，STACKS_DEPTH 扫描深度）
 	cd backend && $(PYTHON) -m lightpanel.agent --host $(AGENT_HOST) --port $(AGENT_PORT) $(if $(AGENT_TOKEN),--token $(AGENT_TOKEN)) $(if $(STACKS_ROOT),--stacks-root $(STACKS_ROOT) --max-depth $(STACKS_DEPTH))
+
+host: ## 宿主机直跑一键安装（systemd，需要 root）
+	sudo ./deploy/install-host.sh
+
+host-status: ## 宿主机直跑实例的状态、端口与登录令牌
+	./deploy/install-host.sh status
 
 clean: ## 清理构建与缓存产物
 	rm -rf frontend/dist backend/.pytest_cache backend/htmlcov backend/.coverage
