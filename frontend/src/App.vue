@@ -33,7 +33,10 @@ async function login() {
   authLoading.value = true
   try {
     storeToken(tokenInput.value.trim())
-    auth.value = await api.login(tokenInput.value.trim())
+    const status = await api.login(tokenInput.value.trim())
+    // 旧版后端只回 {ok, enabled}，authenticated 为 undefined；
+    // 走到这里说明 token 已被接受，不能因为缺字段把用户留在登录页。
+    auth.value = { enabled: status.enabled, authenticated: status.authenticated !== false }
     tokenInput.value = ''
     pushToast('已通过鉴权', 'success')
     await Promise.all([system.refresh(), docker.refresh()])

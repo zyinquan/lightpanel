@@ -59,6 +59,29 @@ def test_login_sets_cookie(secured_client):
     assert secured_client.get("/api/containers").status_code == 200
 
 
+def test_login_reports_authenticated(secured_client):
+    """前端拿这个返回值决定退出登录页；只给 ok/enabled 会卡在登录页。"""
+    body = secured_client.post("/api/auth/login", json={"token": "s3cret"}).json()
+    assert body["enabled"] is True
+    assert body["authenticated"] is True
+
+
+def test_status_reflects_cookie(secured_client):
+    secured_client.post("/api/auth/login", json={"token": "s3cret"})
+    body = secured_client.get("/api/auth/status").json()
+    assert body == {"enabled": True, "authenticated": True}
+
+
+def test_status_reflects_header(secured_client):
+    body = secured_client.get("/api/auth/status", headers={"X-LightPanel-Token": "s3cret"}).json()
+    assert body == {"enabled": True, "authenticated": True}
+
+
+def test_status_rejects_wrong_header(secured_client):
+    body = secured_client.get("/api/auth/status", headers={"X-LightPanel-Token": "bad"}).json()
+    assert body == {"enabled": True, "authenticated": False}
+
+
 def test_login_with_bad_token(secured_client):
     response = secured_client.post("/api/auth/login", json={"token": "nope"})
     assert response.status_code == 401

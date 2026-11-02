@@ -466,6 +466,12 @@ class AuthStatusOut(_Out):
     authenticated: bool
 
 
+class LoginOut(AuthStatusOut):
+    """登录结果：既给出鉴权状态，也保留 ``ok`` 供脚本/旧前端判断。"""
+
+    ok: bool = True
+
+
 class LoginIn(BaseModel):
     token: str = Field(min_length=1)
 
@@ -520,6 +526,7 @@ __all__ = [
     "HostOut",
     "LogsOut",
     "LoginIn",
+    "LoginOut",
     "ReorderIn",
     "SampleOut",
     "SoftwareEntryIn",
