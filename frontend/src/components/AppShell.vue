@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import type { EngineStatus, SystemSnapshot } from '@/api/types'
 import { formatDuration } from '@/utils/format'
+import { useTheme } from '@/composables/useTheme'
 
 const props = defineProps<{
   system: SystemSnapshot | null
@@ -11,6 +12,7 @@ const props = defineProps<{
 }>()
 
 const route = useRoute()
+const { theme, toggle: toggleTheme } = useTheme()
 
 const NAV = [
   { to: '/', label: '概览', icon: '▤' },
@@ -18,6 +20,7 @@ const NAV = [
   { to: '/containers', label: '容器', icon: '▣' },
   { to: '/stacks', label: '编排', icon: '≡' },
   { to: '/commands', label: '命令', icon: '⌘' },
+  { to: '/settings', label: '设置', icon: '⚙' },
 ]
 
 const uptime = computed(() =>
@@ -67,6 +70,13 @@ const engineLabel = computed(() => {
           <span class="dim">{{ system?.host.os_name ?? '' }} {{ system?.host.arch ?? '' }}</span>
         </div>
         <span class="spacer" />
+        <button
+          class="btn btn--sm theme-toggle"
+          :title="theme === 'dark' ? '切换到浅色' : '切换到深色'"
+          @click="toggleTheme"
+        >
+          {{ theme === 'dark' ? '☀' : '☾' }}
+        </button>
         <span v-if="error" class="badge" style="color: var(--danger)">{{ error }}</span>
         <span v-else class="badge">
           <span class="dot" style="background: var(--success)" />
@@ -148,7 +158,7 @@ const engineLabel = computed(() => {
 
 .nav__item--active {
   background: var(--accent-soft);
-  color: #a8c6ff;
+  color: var(--nav-active-text);
 }
 
 .nav__icon {
@@ -191,7 +201,13 @@ const engineLabel = computed(() => {
   gap: 10px;
   padding: 12px 22px;
   border-bottom: 1px solid var(--border);
-  background: rgba(21, 27, 36, 0.6);
+  background: var(--topbar-bg);
+}
+
+.theme-toggle {
+  width: 34px;
+  text-align: center;
+  font-size: 15px;
 }
 
 .topbar__meta {

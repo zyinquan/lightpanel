@@ -273,7 +273,7 @@ const scopeDetail = computed(() => {
   gap: 9px;
   padding: 5px 0;
   font-size: 12.5px;
-  border-bottom: 1px solid rgba(35, 44, 56, 0.5);
+  border-bottom: 1px solid var(--border);
 }
 
 .ctable__state {

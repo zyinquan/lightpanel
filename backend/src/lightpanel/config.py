@@ -255,3 +255,26 @@ def load_config(
     config = AppConfig.model_validate(data)
     config.config_path = str(chosen) if chosen else ""
     return config
+
+
+def persist_security_token(config_path: str | os.PathLike[str], token: str) -> None:
+    """把新的 ``security.api_token`` 写回 YAML 配置文件。
+
+    只改动这一个键，其余键保持原值；先写临时文件再原子替换，避免写一半
+    被读到残缺配置。注释会丢失——用 yaml 往返无法保留，属可接受代价。
+    """
+    path = Path(config_path)
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict):
+        raise ValueError(f"config file {path} must contain a mapping at the top level")
+    security = data.get("security")
+    if not isinstance(security, dict):
+        security = {}
+    security["api_token"] = token
+    data["security"] = security
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(
+        yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    tmp.replace(path)

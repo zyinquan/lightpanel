@@ -476,6 +476,13 @@ class LoginIn(BaseModel):
     token: str = Field(min_length=1)
 
 
+class PasswordChangeIn(BaseModel):
+    """修改登录密码（即 api_token）：需携带当前密码验证身份。"""
+
+    current: str = Field(min_length=1)
+    new: str = Field(min_length=6, max_length=128)
+
+
 class ErrorOut(_Out):
     code: str
     message: str
@@ -526,6 +533,7 @@ __all__ = [
     "HostOut",
     "LogsOut",
     "LoginIn",
+    "PasswordChangeIn",
     "LoginOut",
     "ReorderIn",
     "SampleOut",

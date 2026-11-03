@@ -14,12 +14,46 @@
   --warning: #d29922;
   --danger: #f85149;
   --purple: #a371f7;
+  --btn-hover: #243040;
+  --btn-hover-border: #3b4859;
+  --btn-primary-hover: #3d7bf0;
+  --danger-text: #ff7b72;
+  --topbar-bg: rgba(21, 27, 36, 0.6);
+  --nav-active-text: #a8c6ff;
   --radius-sm: 6px;
   --radius: 10px;
   --radius-lg: 14px;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   --font: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   --mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  color-scheme: dark;
+}
+
+/* 浅色主题：仅覆盖颜色变量，结构与字号沿用上面的定义 */
+:root[data-theme='light'] {
+  --bg: #f4f6f9;
+  --bg-elevated: #ffffff;
+  --bg-card: #ffffff;
+  --bg-hover: #eaeff5;
+  --border: #dbe1e9;
+  --border-strong: #c4cdd9;
+  --text: #1b2430;
+  --text-muted: #5b6774;
+  --text-dim: #8b96a4;
+  --accent: #2f6fdd;
+  --accent-soft: rgba(47, 111, 221, 0.11);
+  --success: #1a9e46;
+  --warning: #a97a0e;
+  --danger: #d9423c;
+  --purple: #7a4dd6;
+  --btn-hover: #e2e8f0;
+  --btn-hover-border: #c4cdd9;
+  --btn-primary-hover: #2861c6;
+  --danger-text: #c03630;
+  --topbar-bg: rgba(255, 255, 255, 0.75);
+  --nav-active-text: #1f5ac2;
+  --shadow: 0 8px 24px rgba(23, 36, 61, 0.1);
+  color-scheme: light;
 }
 
 * {
@@ -134,8 +168,8 @@ textarea {
 }
 
 .btn:hover:not(:disabled) {
-  background: #243040;
-  border-color: #3b4859;
+  background: var(--btn-hover);
+  border-color: var(--btn-hover-border);
 }
 
 .btn:disabled {
@@ -149,14 +183,14 @@ textarea {
   color: #fff;
 }
 .btn--primary:hover:not(:disabled) {
-  background: #3d7bf0;
-  border-color: #3d7bf0;
+  background: var(--btn-primary-hover);
+  border-color: var(--btn-primary-hover);
 }
 
 .btn--danger {
   background: rgba(248, 81, 73, 0.16);
   border-color: rgba(248, 81, 73, 0.5);
-  color: #ff7b72;
+  color: var(--danger-text);
 }
 .btn--danger:hover:not(:disabled) {
   background: rgba(248, 81, 73, 0.28);

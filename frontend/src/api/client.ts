@@ -110,6 +110,13 @@ export class ApiClient {
     })
   }
 
+  changePassword(current: string, next: string): Promise<AuthStatus> {
+    return this.request('/auth/password', {
+      method: 'POST',
+      body: JSON.stringify({ current, new: next }),
+    })
+  }
+
   // -- system ----------------------------------------------------------------
   system(): Promise<SystemSnapshot> {
     return this.request('/system')

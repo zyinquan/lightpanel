@@ -5,9 +5,11 @@ import ToastHost from '@/components/ToastHost.vue'
 import { api, storeToken } from '@/api/client'
 import { usePolling } from '@/composables/usePolling'
 import { errorMessage, pushToast } from '@/composables/useToast'
+import { useTheme } from '@/composables/useTheme'
 import type { AuthStatus } from '@/api/types'
 
 const POLL_MS = 3000
+const { theme, toggle: toggleTheme } = useTheme()
 
 const auth = ref<AuthStatus>({ enabled: false, authenticated: false })
 const tokenInput = ref('')
@@ -54,6 +56,14 @@ onMounted(loadAuth)
 <template>
   <div v-if="auth.enabled && !auth.authenticated" class="login">
     <form class="login__panel card" @submit.prevent="login">
+      <button
+        class="login__theme"
+        type="button"
+        :title="theme === 'dark' ? '切换到浅色' : '切换到深色'"
+        @click="toggleTheme"
+      >
+        {{ theme === 'dark' ? '☀' : '☾' }}
+      </button>
       <div class="brand-lg">
         <span class="brand-lg__mark">LP</span>
         <h1>LightPanel</h1>
@@ -91,11 +101,25 @@ onMounted(loadAuth)
 }
 
 .login__panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 14px;
   width: min(360px, 92vw);
   padding: 26px;
+}
+
+.login__theme {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  font-size: 15px;
 }
 
 .brand-lg {

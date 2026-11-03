@@ -110,3 +110,64 @@ def test_missing_token_configuration_disables_protection():
     )
     with TestClient(create_app(config=config)) as anonymous:
         assert anonymous.get("/api/containers").status_code == 200
+
+
+def test_change_password_requires_current(secured_client):
+    response = secured_client.post(
+        "/api/auth/password", json={"current": "wrong", "new": "newpass1"}
+    )
+    assert response.status_code == 401
+
+
+def test_change_password_takes_effect_immediately(secured_client):
+    secured_client.post(
+        "/api/auth/password", json={"current": "s3cret", "new": "newpass1"}
+    )
+    secured_client.cookies.clear()  # 去掉响应刚写入的新 cookie，逐项验证
+    assert secured_client.get("/api/containers").status_code == 401
+    assert (
+        secured_client.get("/api/containers", headers={"X-LightPanel-Token": "s3cret"}).status_code
+        == 401
+    )
+    body = secured_client.get(
+        "/api/auth/status", headers={"X-LightPanel-Token": "newpass1"}
+    ).json()
+    assert body == {"enabled": True, "authenticated": True}
+
+
+def test_change_password_validates_input(secured_client):
+    too_short = secured_client.post(
+        "/api/auth/password", json={"current": "s3cret", "new": "123"}
+    )
+    assert too_short.status_code == 422  # pydantic min_length
+
+    same = secured_client.post(
+        "/api/auth/password", json={"current": "s3cret", "new": "s3cret"}
+    )
+    assert same.status_code == 400
+
+
+def test_change_password_persists_to_config_file(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        "security:\n  enabled: true\n  api_token: oldpass1\nserver:\n  port: 9000\n",
+        encoding="utf-8",
+    )
+    config = load_config(str(config_file))
+    with TestClient(create_app(config=config)) as tc:
+        tc.post("/api/auth/password", json={"current": "oldpass1", "new": "newpass1"})
+
+    import yaml
+
+    saved = yaml.safe_load(config_file.read_text(encoding="utf-8"))
+    assert saved["security"]["api_token"] == "newpass1"
+    assert saved["server"]["port"] == 9000  # 其余键不动
+    assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_change_password_rejected_when_auth_disabled(client):
+    response = client.post(
+        "/api/auth/password", json={"current": "x", "new": "newpass1"}
+    )
+    assert response.status_code == 400
+    assert "未启用鉴权" in response.json()["message"]

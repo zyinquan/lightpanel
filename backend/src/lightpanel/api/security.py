@@ -62,3 +62,7 @@ class TokenAuth:
         if not candidate:
             return False
         return hmac.compare_digest(candidate, self.token)
+
+    def update_token(self, token: str) -> None:
+        """运行中替换令牌；下一次请求即刻生效，无需重启。"""
+        self.token = token
