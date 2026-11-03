@@ -14,6 +14,61 @@ export function formatBytes(bytes: number, fractionDigits = 1): string {
   return `${value.toFixed(digits)} ${BYTE_UNITS[unitIndex]}`
 }
 
+const PORT_PATTERN = /^(?:(?<ip>.*):)?(?<host>\d+)->(?<container>\d+)(?:\/(?<proto>[A-Za-z]+))?$/
+
+/** 监听所有网卡的写法，展示时不必带出来。 */
+const WILDCARD_HOSTS = new Set(['', '*', '0.0.0.0', '::', '[::]', '0:0:0:0:0:0:0:0'])
+
+interface ParsedPort {
+  /** 宿主侧监听地址，空表示所有网卡 */
+  ip: string
+  host: string
+  container: string
+  protocol: string
+}
+
+function parsePort(mapping: string): ParsedPort | null {
+  const matched = PORT_PATTERN.exec(mapping.trim())
+  if (!matched?.groups) return null
+  return {
+    ip: (matched.groups.ip ?? '').trim(),
+    host: matched.groups.host,
+    container: matched.groups.container,
+    protocol: (matched.groups.proto ?? 'tcp').toLowerCase(),
+  }
+}
+
+/**
+ * Docker 的端口字符串 → 展示文案。
+ *
+ * 后端给的是 `docker inspect` 原始写法（`8080->80/tcp`、`127.0.0.1:5432->5432`），
+ * 直接铺在卡片上又长又难读，`->` 也容易被看成减号。这里统一成 `8080→80`。
+ *
+ * 同一端口 Docker 会同时报 IPv4 与 IPv6 两条绑定（`8080->80/tcp` 与
+ * `:::8080->80/tcp`），不去重就会出现两遍；保留不带地址那条，它最好读。
+ */
+export function formatPorts(ports: string[] | null | undefined): string[] {
+  const seen = new Map<string, { text: string; explicit: boolean }>()
+  for (const raw of ports ?? []) {
+    const parsed = parsePort(raw)
+    if (!parsed) {
+      const text = (raw ?? '').trim()
+      if (text) seen.set(text, { text, explicit: true })
+      continue
+    }
+    const suffix = parsed.protocol !== 'tcp' ? `/${parsed.protocol}` : ''
+    const key = `${parsed.host}:${parsed.container}:${parsed.protocol}`
+    const explicit = !WILDCARD_HOSTS.has(parsed.ip)
+    const current = seen.get(key)
+    // 已有一条通配绑定就别拿具体 IP 覆盖它；反过来则要换成通配那条
+    if (current && (!current.explicit || explicit)) continue
+    // 只监听某个具体网卡时必须带出地址，否则用户会以为远程也能连
+    const prefix = explicit ? `${parsed.ip}:` : ''
+    seen.set(key, { text: `${prefix}${parsed.host}→${parsed.container}${suffix}`, explicit })
+  }
+  return [...seen.values()].map((item) => item.text)
+}
+
 export function formatPercent(value: number, digits = 1): string {
   if (!Number.isFinite(value)) return '-'
   return `${value.toFixed(digits)}%`

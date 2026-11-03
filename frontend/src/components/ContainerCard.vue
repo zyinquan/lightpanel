@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { CommandDefinition, ContainerInfo, ContainerUsage } from '@/api/types'
-import { formatBytes, formatDateTime, stateColor, stateLabel } from '@/utils/format'
+import { formatBytes, formatDateTime, formatPorts, stateColor, stateLabel } from '@/utils/format'
 
 const props = defineProps<{
   container: ContainerInfo
@@ -20,6 +20,8 @@ const isRunning = computed(() => props.container.state.toLowerCase() === 'runnin
 const isPaused = computed(() => props.container.state.toLowerCase() === 'paused')
 const color = computed(() => stateColor(props.container.state))
 const created = computed(() => formatDateTime(props.container.created_at))
+/** 端口映射摘要；Docker 的 IPv4/IPv6 双绑定在这里合并成一条。 */
+const ports = computed(() => formatPorts(props.container.ports))
 /** 只有运行中的容器才有采样；停止的显示「—」而不是假 0%。 */
 const showsUsage = computed(() => isRunning.value && !!props.usage)
 const subtitle = computed(() => {
@@ -70,8 +72,8 @@ const ACTION_LABEL: Record<string, string> = {
       <span class="mono dim" :title="container.id">{{ container.short_id }}</span>
       <span class="dim">·</span>
       <span class="dim">{{ created }}</span>
-      <span v-if="container.ports.length" class="container__ports">
-        <span v-for="port in container.ports" :key="port" class="badge mono">{{ port }}</span>
+      <span v-if="ports.length" class="container__ports">
+        <span v-for="port in ports" :key="port" class="badge mono">{{ port }}</span>
       </span>
     </div>
 

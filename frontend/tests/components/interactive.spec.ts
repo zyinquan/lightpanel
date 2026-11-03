@@ -276,3 +276,56 @@ describe('ConfirmDialog', () => {
     expect(wrapper.emitted('cancel')).toHaveLength(1)
   })
 })
+
+describe('编排卡端口映射', () => {
+  const member = (overrides: Partial<ContainerInfo> = {}): ContainerInfo => ({
+    ...container,
+    id: `id-${overrides.name ?? 'x'}`,
+    ...overrides,
+  })
+
+  it('逐个成员列出端口，并标出是哪个服务发布的', () => {
+    const wrapper = mount(StackCard, {
+      props: {
+        stack: {
+          ...stack,
+          containers: [
+            member({ name: 'blog-web-1', compose_service: 'web', ports: ['0.0.0.0:8080->80/tcp'] }),
+            member({ name: 'blog-db-1', compose_service: 'db', ports: ['127.0.0.1:5432->5432'] }),
+          ],
+        },
+      },
+    })
+    const chips = wrapper.findAll('[data-test="stack-ports"] .stack__port')
+    expect(chips.map((chip) => chip.text().replace(/\s+/g, ' '))).toEqual([
+      'web 8080→80',
+      'db 127.0.0.1:5432→5432',
+    ])
+  })
+
+  it('容器停止后端口仍然列出，但标记为不可用', () => {
+    const wrapper = mount(StackCard, {
+      props: {
+        stack: {
+          ...stack,
+          containers: [member({ name: 'blog-web-1', compose_service: 'web', state: 'exited' })],
+        },
+      },
+    })
+    const chip = wrapper.get('[data-test="stack-ports"] .stack__port')
+    expect(chip.classes()).toContain('stack__port--off')
+    expect(chip.attributes('title')).toContain('容器已停止')
+  })
+
+  it('没有发布端口的编排不出现端口行', () => {
+    const wrapper = mount(StackCard, {
+      props: { stack: { ...stack, containers: [member({ ports: [] })] } },
+    })
+    expect(wrapper.find('[data-test="stack-ports"]').exists()).toBe(false)
+  })
+
+  it('容器卡与编排卡用同一套写法，避免同一个端口两处长得不一样', () => {
+    const wrapper = mount(ContainerCard, { props: { container: member({ ports: ['0.0.0.0:80->80/tcp'] }) } })
+    expect(wrapper.get('.container__ports').text().replace(/\s+/g, ' ')).toBe('80→80')
+  })
+})

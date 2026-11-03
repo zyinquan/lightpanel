@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { CommandDefinition, ContainerUsage, StackInfo } from '@/api/types'
-import { formatBytes, stateColor, stateLabel } from '@/utils/format'
+import { formatBytes, formatPorts, stateColor, stateLabel } from '@/utils/format'
 
 const props = defineProps<{
   stack: StackInfo
@@ -21,6 +21,25 @@ const color = computed(() => stateColor(props.stack.status))
 const ratio = computed(() =>
   props.stack.total ? Math.round((props.stack.running / props.stack.total) * 100) : 0,
 )
+
+interface StackPortChip {
+  /** 发布这个端口的 compose 服务名 */
+  service: string
+  /** 形如 `8080→80` */
+  text: string
+  running: boolean
+}
+
+/** 整栈的端口映射：逐个成员容器摊平，标出是哪个服务发布的。 */
+const ports = computed<StackPortChip[]>(() => {
+  const list: StackPortChip[] = []
+  for (const container of props.stack.containers) {
+    const running = container.state.toLowerCase() === 'running'
+    const service = container.compose_service || container.name
+    for (const text of formatPorts(container.ports)) list.push({ service, text, running })
+  }
+  return list
+})
 
 /** 整栈 CPU / 内存 = 各容器之和；只统计有采样的运行中容器。 */
 const usage = computed(() => {
@@ -76,6 +95,19 @@ const ACTIONS: Array<{ id: string; label: string; danger?: boolean }> = [
 
     <div class="stack__bar">
       <div class="stack__bar-fill" :style="{ width: `${ratio}%`, background: color }" />
+    </div>
+
+    <div v-if="ports.length" class="stack__ports" data-test="stack-ports">
+      <span
+        v-for="(port, index) in ports"
+        :key="`${index}-${port.service}-${port.text}`"
+        class="badge mono stack__port"
+        :class="{ 'stack__port--off': !port.running }"
+        :title="`${port.service} · 宿主机 ${port.text}${port.running ? '' : '（容器已停止）'}`"
+      >
+        <span class="stack__port-service">{{ port.service }}</span>
+        {{ port.text }}
+      </span>
     </div>
 
     <div v-if="usage" class="stack__usage">
@@ -207,6 +239,21 @@ const ACTIONS: Array<{ id: string; label: string; danger?: boolean }> = [
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.stack__ports {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.stack__port-service {
+  color: var(--text-dim);
+}
+
+/* 容器没跑，端口映射只是历史记录，弱化它 */
+.stack__port--off {
+  opacity: 0.55;
 }
 
 .stack__usage-note {

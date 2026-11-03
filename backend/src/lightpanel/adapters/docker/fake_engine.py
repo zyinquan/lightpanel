@@ -6,7 +6,7 @@ import copy
 from collections.abc import Sequence
 
 from ...domain.errors import NotFoundError
-from ...domain.models import ContainerInfo, ContainerState, ContainerUsage
+from ...domain.models import ContainerInfo, ContainerState, ContainerUsage, PortBinding
 
 
 class FakeContainerEngine:
@@ -115,7 +115,7 @@ def demo_containers() -> list[ContainerInfo]:
             image="ghcr.io/example/lightpanel:0.1.0",
             state=ContainerState.RUNNING,
             status="Up 3 hours",
-            ports=[],
+            ports=[PortBinding(host_port="8080", container_port="80")],
             labels={
                 "com.docker.compose.project": "lightpanel",
                 "com.docker.compose.service": "web",
@@ -129,6 +129,8 @@ def demo_containers() -> list[ContainerInfo]:
             image="postgres:16-alpine",
             state=ContainerState.RUNNING,
             status="Up 3 hours (healthy)",
+            # 数据库只绑回环地址，正好覆盖「端口写着但远程连不上」的展示
+            ports=[PortBinding(host_ip="127.0.0.1", host_port="5432", container_port="5432")],
             labels={
                 "com.docker.compose.project": "lightpanel",
                 "com.docker.compose.service": "db",
@@ -142,6 +144,7 @@ def demo_containers() -> list[ContainerInfo]:
             image="redis:7-alpine",
             state=ContainerState.EXITED,
             status="Exited (0) 10 minutes ago",
+            ports=[PortBinding(host_port="6379", container_port="6379")],
             labels={"com.docker.compose.project": "cache"},
         ),
         ContainerInfo(
@@ -150,5 +153,9 @@ def demo_containers() -> list[ContainerInfo]:
             image="nginx:1.27-alpine",
             state=ContainerState.RUNNING,
             status="Up 2 days",
+            ports=[
+                PortBinding(host_port="80", container_port="80"),
+                PortBinding(host_port="443", container_port="443"),
+            ],
         ),
     ]

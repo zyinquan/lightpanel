@@ -5,6 +5,7 @@ import {
   formatDateTime,
   formatDuration,
   formatPercent,
+  formatPorts,
   initials,
   normalizeUrl,
   stateColor,
@@ -107,5 +108,40 @@ describe('normalizeUrl', () => {
     expect(normalizeUrl(undefined)).toBe('')
     expect(normalizeUrl('javascript:alert(1)')).toBe('')
     expect(normalizeUrl('data:text/html,<b>x')).toBe('')
+  })
+})
+
+describe('formatPorts', () => {
+  it('把 Docker 的 -> 改写成箭头，并省掉冗余的 tcp 后缀', () => {
+    expect(formatPorts(['8080->80/tcp'])).toEqual(['8080\u219280'])
+    expect(formatPorts(['5432->5432'])).toEqual(['5432\u21925432'])
+  })
+
+  it('非 tcp 协议保留后缀', () => {
+    expect(formatPorts(['53->53/udp'])).toEqual(['53\u219253/udp'])
+  })
+
+  it('绑定到具体网卡时保留地址，否则用户不知道只在本机通', () => {
+    expect(formatPorts(['127.0.0.1:5432->5432'])).toEqual(['127.0.0.1:5432\u21925432'])
+  })
+
+  it('同一端口的 IPv4 / IPv6 双绑定只留一条，且留下最好读的那条', () => {
+    expect(formatPorts(['8080->80/tcp', ':::8080->80/tcp'])).toEqual(['8080\u219280'])
+    // 顺序反过来也要收敛到通配绑定
+    expect(formatPorts([':::8080->80/tcp', '8080->80/tcp'])).toEqual(['8080\u219280'])
+    expect(formatPorts(['0.0.0.0:8080->80/tcp', '[::]:8080->80/tcp'])).toEqual(['8080\u219280'])
+  })
+
+  it('端口不同则各留一条', () => {
+    expect(formatPorts(['8080->80/tcp', '8443->443/tcp'])).toEqual([
+      '8080\u219280',
+      '8443\u2192443',
+    ])
+  })
+
+  it('无法解析的写法原样保留，空输入返回空数组', () => {
+    expect(formatPorts(['自定义映射'])).toEqual(['自定义映射'])
+    expect(formatPorts([])).toEqual([])
+    expect(formatPorts(undefined)).toEqual([])
   })
 })
