@@ -39,11 +39,23 @@
 
 ### `POST /api/auth/login`
 
-请求 `{"token": "..."}` → 返回 `AuthStatus`。前端会把令牌写入 `localStorage`，并在后续请求的 `X-LightPanel-Token` 头携带。Cookie 与查询参数 `?token=` 同样被接受。
+请求 `{"token": "..."}` → 返回 `{ "enabled": true, "authenticated": true, "ok": true }`，成功时同时下发同名 Cookie。前端会把令牌写入 `localStorage`，并在后续请求的 `X-LightPanel-Token` 头携带。Cookie 与查询参数 `?token=` 同样被接受。
 
 ### `POST /api/auth/logout`
 
-清除会话态（前端侧删除本地令牌）。
+清除会话态（删除 Cookie，前端侧删除本地令牌）。
+
+### `POST /api/auth/password`
+
+修改登录密码（即 `security.api_token`）：内存即时生效，并原子写回配置文件。请求：
+
+```json
+{ "current": "旧密码", "new": "新密码（6–128 位）" }
+```
+
+- 未启用鉴权 → 400 `validation_error`；
+- `LIGHTPANEL_SECURITY__API_TOKEN` 环境变量存在时拒绝修改（环境变量优先级高于配置文件）→ 400；
+- 当前密码不正确 → 401。
 
 ---
 
@@ -101,7 +113,9 @@
 ```json
 {
   "entries": [ { "id": "jellyfin", "name": "Jellyfin", "url": "http://nas:8096",
-                 "description": "家庭影音库", "icon": "🎬", "color": "#ff5c8a",
+                 "description": "家庭影音库", "icon": "🎬",
+                 "icon_image": "/api/catalog/icons/a1b2c3d4e5f60718.png",
+                 "color": "#ff5c8a",
                  "category": "影音", "tags": ["影音", "自建"], "enabled": true, "order": 0 } ],
   "tags": [ { "name": "影音", "count": 3 }, { "name": "自建", "count": 5 } ],
   "total": 12
@@ -169,6 +183,19 @@
    "ports": ["0.0.0.0:80->80/tcp"], "labels": {},
    "compose_project": "web", "compose_service": "nginx" }]
 ```
+
+### `GET /api/containers/usage`
+
+运行中容器的 CPU / 内存实时占用。服务端并发采样并做短缓存（有旧快照立即返回、后台刷新），前端按 `container_id` 匹配到卡片 / 编排：
+
+```json
+{ "items": [ { "container_id": "a1b2...", "cpu_percent": 12.5,
+               "memory_bytes": 104857600, "memory_limit_bytes": 8589934592,
+               "memory_percent": 1.2 } ],
+  "sampled_at": "2026-11-03T07:00:00Z" }
+```
+
+内存为容器实际用量（已扣除 page cache）；**CPU 为整机口径**——4 核跑满 1 核显示 25%。
 
 ### `POST /api/containers/{id}/{action}`
 

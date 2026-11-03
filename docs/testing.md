@@ -3,8 +3,8 @@
 测试策略的核心是一条：**所有测试都离线运行，不依赖真实 Docker、不依赖真实主机指标**。这靠"假适配器"实现——它们与真实适配器实现同一套端口协议，因此测试覆盖的是真实业务代码路径，而非 mock 出来的替身。
 
 ```
-后端：pytest     202 个用例，覆盖率 ~89%
-前端：vitest      56 个用例
+后端：pytest    293 个用例（CI 覆盖率门槛 85%）
+前端：vitest     79 个用例
 ```
 
 ---
@@ -28,12 +28,19 @@ pytest -q --cov=lightpanel --cov-report=html      # 生成 htmlcov/
 
 | 文件 | 覆盖内容 |
 | --- | --- |
-| `tests/conftest.py` | 全部 fixture：`clock` `metrics_provider` `catalog_repository` `container_engine` `executor` `stack_engine` `policy` `*_service` `test_config` `app` `client` |
+| `tests/conftest.py` | 全部 fixture：`clock` `metrics_provider` `catalog_repository` `container_engine` `executor` `stack_engine` `policy` `*_service` `test_config` `app` `client` `sample_entries` `echo_command` `yaml_catalog_path` |
 | `unit/test_config.py` | 分层配置：YAML、环境变量嵌套覆盖、非法字段拒绝、类型强转 |
 | `unit/test_system_service.py` | 快照缓存 TTL、历史环形缓冲上限、失效刷新 |
 | `unit/test_catalog_service.py` | CRUD、标签归一化与统计、过滤（任意/全部命中）、搜索、排序、重排 |
 | `unit/test_container_service.py` | 动作归一化、未知动作报错、引擎不可用传播、日志 |
+| `unit/test_container_usage.py` | 容器占用采样：stats 解析、聚合与 API 形状 |
 | `unit/test_stack_service.py` | 栈发现、状态聚合、各 compose 动作的 argv 组装 |
+| `unit/test_compose_engine.py` | 项目文件不在本机时 compose 适配器的判定与报错 |
+| `unit/test_agent_compose.py` | 宿主机 compose 链路：agent 侧服务、面板侧适配器、agent 应用端点 |
+| `unit/test_metrics_agent.py` | 宿主机指标代理：远端适配器、回落组合、agent 应用 |
+| `unit/test_icon_store.py` | 图标文件存储：格式嗅探（拒 SVG）、大小上限、随机文件名、无引用清理 |
+| `unit/test_composition.py` | 组合根装配开关与首次播种（示例文件复制） |
+| `unit/test_spa_static.py` | SPA 静态托管：history 回退、HTML `no-cache`、assets 长缓存 |
 | `unit/test_command_policy.py` | 白名单、解释器拦截、危险参数拦截、超时夹紧 |
 | `unit/test_command_service.py` | 命令注册、模板渲染、预览、执行、超时与失败结果 |
 | `unit/test_command_definitions.py` | YAML 命令定义加载与校验 |
@@ -43,6 +50,7 @@ pytest -q --cov=lightpanel --cov-report=html      # 生成 htmlcov/
 | `unit/test_schemas.py` | DTO 转换与格式化辅助函数 |
 | `integration/test_api.py` | 通过 `TestClient` 打全量 HTTP 流程：健康检查、系统、目录、容器动作、栈动作、命令执行、404/400 错误形状 |
 | `integration/test_auth.py` | 鉴权开关、令牌校验、受保护路由 |
+| `integration/test_catalog_icons.py` | 图标上传 / 读取 / 删除的端到端流程与引用清理 |
 
 ### 关键设计
 
@@ -76,11 +84,13 @@ npx vitest run --coverage
 
 | 文件 | 覆盖内容 |
 | --- | --- |
-| `tests/unit/format.spec.ts` | `formatBytes` `formatDuration` `formatDateTime` `usageColor` `stateColor/Label` `colorFromString` `initials` |
+| `tests/unit/format.spec.ts` | `formatBytes` `formatDuration` `formatDateTime` `formatPorts` `usageColor` `stateColor/Label` `colorFromString` `initials` |
 | `tests/unit/client.spec.ts` | URL 与查询参数拼接、token 请求头、JSON 序列化、404 → `ApiError{status, code}`、204 空响应、容器/栈/命令的路径与请求体 |
 | `tests/unit/composables.spec.ts` | `usePolling` 立即取数、错误回调、`enabled` 开关、并发去重；`useToast` 推入/关闭/清空 |
 | `tests/components/presentation.spec.ts` | `UsageBar` `StatCard` `SparkLine` `EmptyState` `OutputConsole` 的渲染与边界（空数据、越界百分比、stderr 合并） |
-| `tests/components/interactive.spec.ts` | `SoftwareCard` `ContainerCard` `StackCard` `TagFilter` `ConfirmDialog` 的事件派发与状态（运行中/已停止的动作差异、高危确认的输入校验） |
+| `tests/components/interactive.spec.ts` | `SoftwareCard` `ContainerCard` `StackCard` `TagFilter` `ConfirmDialog` 的事件派发与状态（运行中/已停止的动作差异、高危确认的输入校验、端口映射展示） |
+| `tests/components/dashboard.spec.ts` | `DashboardView` 指标口径提示条（宿主机 / 容器内两种来源） |
+| `tests/components/stacks.spec.ts` | `StacksView` 代理不可用提示与栈卡渲染 |
 
 ### 约定
 

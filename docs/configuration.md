@@ -37,7 +37,7 @@
 | `cookie_name` | `lightpanel_token` | Cookie 名 |
 | `query_param` | `token` | 查询参数名 |
 
-令牌可通过**请求头 / Cookie / 查询参数**任一方式携带。前端会把令牌写入 `localStorage` 并在每次请求带上。
+令牌可通过**请求头 / Cookie / 查询参数**任一方式携带。前端会把令牌写入 `localStorage` 并在每次请求带上；启用后也可在面板的设置页直接修改密码（等效于改 `api_token`，见 `POST /api/auth/password`）。
 
 ```bash
 LIGHTPANEL_SECURITY__ENABLED=true LIGHTPANEL_SECURITY__API_TOKEN=$(openssl rand -hex 24) python -m lightpanel
@@ -240,6 +240,7 @@ LIGHTPANEL_COMPOSE__MAX_DEPTH=4
 LIGHTPANEL_COMPOSE__RUNNER=agent
 LIGHTPANEL_COMPOSE__AGENT_URL=http://host.docker.internal:9101
 LIGHTPANEL_CATALOG__PATH=/data/catalog.yaml
+LIGHTPANEL_CATALOG__ICONS_DIR=/data/icons
 LIGHTPANEL_COMMANDS__ALLOWED_BINARIES='["docker"]'
 LIGHTPANEL_LOGGING__LEVEL=DEBUG
 ```

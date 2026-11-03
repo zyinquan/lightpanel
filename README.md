@@ -11,10 +11,11 @@
 | 能力 | 说明 |
 | --- | --- |
 | **服务器状态** | CPU（含每核、负载、频率）、内存与 Swap、磁盘分区、网络收发、启动时间；带快照缓存与趋势历史；概览页明确标注「宿主机指标 / 容器内指标」 |
-| **软件标签** | 软件条目的增删改查、标签过滤（任意命中 / 全部命中）、搜索、自定义排序、主题色与图标 |
+| **软件标签** | 软件条目的增删改查、标签过滤（任意命中 / 全部命中）、搜索、自定义排序、主题色与图标；图标支持本地上传图片（无图片时回落到图标字符） |
 | **容器控制** | 启动 / 停止 / 重启 / 暂停 / 继续 / 删除，日志查看，按名称 / 镜像 / 状态 / 项目筛选 |
 | **Compose 编排** | 自动发现 `docker-compose.yml`，支持 up（`-d`）/ down / restart / pull，附加参数透传；面板跑在容器里时可交给宿主机代理执行，避免相对挂载路径错位 |
 | **自定义命令** | YAML 声明式命令模板（`{id}` `{name}` 等占位符渲染），危险命令需确认，临时命令受白名单与参数守卫约束 |
+| **界面** | 深色 / 浅色主题切换（本地持久化）；设置页可修改登录密码 |
 | **安全** | 可选单令牌鉴权；命令执行有二进制白名单、shell 解释器拦截、危险参数拦截与超时控制 |
 
 ---
@@ -101,13 +102,13 @@ lightpanel/
 │   │   ├── composition.py     # 组合根：唯一的装配处（依赖注入）
 │   │   └── config.py          # 分层配置：默认值 < YAML < 环境变量 < 显式覆盖
 │   ├── data/                  # catalog.yaml / commands.yaml 示例数据
-│   └── tests/                 # unit + integration，187 个用例
+│   └── tests/                 # unit + integration 测试
 ├── frontend/
 │   ├── src/api/               # 类型定义与 API 客户端（唯一知道 HTTP 的地方）
 │   ├── src/components/        # 展示与交互组件
-│   ├── src/views/             # 五个页面：概览 / 软件 / 容器 / 编排 / 命令
+│   ├── src/views/             # 六个页面：概览 / 软件 / 容器 / 编排 / 命令 / 设置
 │   ├── src/composables/       # usePolling（轮询）· useToast（提示）
-│   └── tests/                 # vitest，56 个用例
+│   └── tests/                 # vitest 测试
 ├── deploy/                    # Dockerfile、compose、反向代理示例
 ├── docs/                      # 架构 / API / 配置 / 开发 / 测试 文档
 └── config.example.yaml
@@ -120,10 +121,10 @@ lightpanel/
 | 分组 | 端点 |
 | --- | --- |
 | 元信息 | `GET /api/health` |
-| 鉴权 | `GET /api/auth/status` · `POST /api/auth/login` · `POST /api/auth/logout` |
+| 鉴权 | `GET /api/auth/status` · `POST /api/auth/login` · `POST /api/auth/logout` · `POST /api/auth/password` |
 | 系统 | `GET /api/system` · `GET /api/system/history` · `POST /api/system/invalidate` |
-| 软件 | `GET /api/catalog` · `GET /api/catalog/tags` · `GET|POST|PUT|DELETE /api/catalog/entries[/{id}]` · `PUT /api/catalog/entries/{id}/tags` · `POST /api/catalog/reorder` |
-| 容器 | `GET /api/containers/status` · `GET /api/containers` · `GET /api/containers/{id}` · `POST /api/containers/{id}/{action}` · `GET /api/containers/{id}/logs` |
+| 软件 | `GET /api/catalog` · `GET /api/catalog/tags` · `GET|POST|PUT|DELETE /api/catalog/entries[/{id}]` · `PUT /api/catalog/entries/{id}/tags` · `POST /api/catalog/reorder` · `POST|GET|DELETE /api/catalog/icons/{name}` |
+| 容器 | `GET /api/containers/status` · `GET /api/containers` · `GET /api/containers/usage` · `GET /api/containers/{id}` · `POST /api/containers/{id}/{action}` · `GET /api/containers/{id}/logs` |
 | 编排 | `GET /api/stacks/status` · `GET /api/stacks` · `GET /api/stacks/{name}` · `POST /api/stacks/{name}/{action}` |
 | 命令 | `GET /api/commands` · `GET /api/commands/{id}` · `POST /api/commands/{id}/preview` · `POST /api/commands/{id}/run` · `POST /api/commands/run-adhoc` |
 
