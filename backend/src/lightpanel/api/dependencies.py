@@ -10,6 +10,7 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 
+from ..adapters.catalog.icon_store import IconStore
 from ..composition import AppContainer
 from ..services.catalog_service import CatalogService
 from ..services.command_service import CommandService
@@ -21,6 +22,10 @@ from ..services.system_service import SystemService
 def get_container(request: Request) -> AppContainer:
     container: AppContainer = request.app.state.container
     return container
+
+
+def get_icon_store(container: Annotated[AppContainer, Depends(get_container)]) -> IconStore:
+    return container.icon_store
 
 
 def get_system(container: Annotated[AppContainer, Depends(get_container)]) -> SystemService:
@@ -46,6 +51,7 @@ def get_commands(container: Annotated[AppContainer, Depends(get_container)]) -> 
 ContainerDep = Annotated[AppContainer, Depends(get_container)]
 SystemDep = Annotated[SystemService, Depends(get_system)]
 CatalogDep = Annotated[CatalogService, Depends(get_catalog)]
+IconDep = Annotated[IconStore, Depends(get_icon_store)]
 ContainersDep = Annotated[ContainerService, Depends(get_containers)]
 StacksDep = Annotated[StackService, Depends(get_stacks)]
 CommandsDep = Annotated[CommandService, Depends(get_commands)]

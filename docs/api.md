@@ -114,14 +114,27 @@
 
 ### `POST /api/catalog/entries`（201）
 
-请求体（`id` 可省略，由名称生成）：
+请求体（`id` 可省略，由名称生成；`icon_image` 为图片图标引用，有值时优先于 `icon` 字符展示）：
 
 ```json
 { "name": "Jellyfin", "url": "http://nas:8096", "description": "...",
-  "icon": "🎬", "color": "#ff5c8a", "category": "影音", "tags": ["影音"], "enabled": true, "order": 0 }
+  "icon": "🎬", "icon_image": "/api/catalog/icons/a1b2c3d4e5f60718.png",
+  "color": "#ff5c8a", "category": "影音", "tags": ["影音"], "enabled": true, "order": 0 }
 ```
 
 ### `PUT /api/catalog/entries/{id}` · `DELETE /api/catalog/entries/{id}`（204）· `GET /api/catalog/entries/{id}`
+
+更新 / 删除条目时会自动清理不再被引用的上传图标文件。
+
+### `POST /api/catalog/icons`（201）— 上传图标图片
+
+请求体为图片的原始字节流（`Content-Type: image/png` 等，不用 multipart）。
+仅接受 PNG / JPEG / WebP / GIF，≤2MB；服务端按文件头识别格式，文件名随机生成。
+响应：`{ "url": "/api/catalog/icons/<name>.png" }`。
+
+### `GET /api/catalog/icons/{name}` · `DELETE /api/catalog/icons/{name}`（204）
+
+读取（长缓存 `immutable`）或删除一个已上传的图标文件。
 
 ### `PUT /api/catalog/entries/{id}/tags`
 

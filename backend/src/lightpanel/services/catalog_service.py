@@ -6,7 +6,7 @@ import hashlib
 import re
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 from ..domain.errors import ConflictError, NotFoundError, ValidationError
 from ..domain.models import SoftwareEntry, TagSummary
@@ -14,6 +14,8 @@ from ..domain.ports import CatalogRepository
 
 ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 COLOR_PATTERN = re.compile(r"^(#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}))?$")
+ICON_IMAGE_PATTERN = re.compile(r"^(https?://|/)[^\\]*$")
+ICON_IMAGE_MAX = 300
 MAX_TAGS = 24
 MAX_TAG_LENGTH = 32
 
@@ -42,8 +44,10 @@ class CatalogService:
     :class:`CatalogRepository` port.
     """
 
-    def __init__(self, repository: CatalogRepository) -> None:
+    def __init__(self, repository: CatalogRepository, icon_store: Any | None = None) -> None:
         self.repository = repository
+        # 可选：传入后，更新/删除条目时会顺带清理不再被引用的图标文件。
+        self.icon_store = icon_store
 
     async def list_entries(self, query: CatalogQuery | None = None) -> list[SoftwareEntry]:
         query = query or CatalogQuery()
@@ -78,13 +82,18 @@ class CatalogService:
 
     async def update(self, entry: SoftwareEntry) -> SoftwareEntry:
         validate_entry(entry)
-        if await self.repository.get(entry.id) is None:
+        existing = await self.repository.get(entry.id)
+        if existing is None:
             raise NotFoundError(f"Software entry not found: {entry.id}")
-        return await self.repository.update(entry)
+        saved = await self.repository.update(entry)
+        await self._collect_icon(existing.icon_image, exclude_id=saved.id)
+        return saved
 
     async def delete(self, entry_id: str) -> None:
+        existing = await self.repository.get(entry_id)
         if not await self.repository.remove(entry_id):
             raise NotFoundError(f"Software entry not found: {entry_id}")
+        await self._collect_icon(existing.icon_image if existing else "")
 
     async def tags(self) -> list[TagSummary]:
         counter: Counter[str] = Counter()
@@ -113,6 +122,17 @@ class CatalogService:
         return sorted(entries.values(), key=lambda e: e.order)
 
     # -- internals --------------------------------------------------------- #
+    async def _collect_icon(self, reference: str, *, exclude_id: str = "") -> None:
+        """Delete an uploaded icon file once no entry references it any more."""
+        if not reference or self.icon_store is None or not self.icon_store.is_managed(reference):
+            return
+        still_used = any(
+            e.icon_image == reference and e.id != exclude_id
+            for e in await self.repository.list_entries()
+        )
+        if not still_used:
+            await self.icon_store.delete(reference)
+
     @staticmethod
     def _apply(entries: list[SoftwareEntry], query: CatalogQuery) -> list[SoftwareEntry]:
         wanted_tags = {t.casefold() for t in query.tags if t.strip()}
@@ -177,6 +197,13 @@ def validate_entry(entry: SoftwareEntry) -> None:
         raise ValidationError("Entry url must start with http:// or https://", field="url")
     if entry.color and not COLOR_PATTERN.match(entry.color):
         raise ValidationError("Entry color must be a #rgb or #rrggbb value", field="color")
+    if entry.icon_image and (
+        len(entry.icon_image) > ICON_IMAGE_MAX or not ICON_IMAGE_PATTERN.match(entry.icon_image)
+    ):
+        raise ValidationError(
+            "Entry icon_image must be an http(s) URL or an in-panel path",
+            field="icon_image",
+        )
     if len(entry.tags) > MAX_TAGS:
         raise ValidationError(f"Too many tags (max {MAX_TAGS})", field="tags")
     for tag in entry.tags:

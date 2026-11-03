@@ -27,6 +27,7 @@ services:
       LIGHTPANEL_SERVER__PORT: "9000"
       LIGHTPANEL_METRICS__CACHE_TTL: "2"
       LIGHTPANEL_CATALOG__PATH: "/data/catalog.yaml"
+      LIGHTPANEL_CATALOG__ICONS_DIR: "/data/icons"
       LIGHTPANEL_CATALOG__EXAMPLE_FILE: "/app/data-examples/catalog.example.yaml"
       LIGHTPANEL_COMMANDS__EXTRA_FILE: "/data/commands.yaml"
       # 首次启动若 /data 为空，自动写出厂的自定义命令示例

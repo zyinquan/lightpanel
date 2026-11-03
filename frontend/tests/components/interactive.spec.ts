@@ -14,6 +14,7 @@ const entry: SoftwareEntry = {
   url: 'http://nas:8096',
   description: '影音库',
   icon: '',
+  icon_image: '',
   color: '#ff5c8a',
   category: '影音',
   tags: ['影音', '自建'],
@@ -108,6 +109,18 @@ describe('SoftwareCard 跳转', () => {
     expect(custom.get('.software__icon').text()).toBe('鲨')
     const fallback = mount(SoftwareCard, { props: { entry } })
     expect(fallback.get('.software__icon').text()).toBe('JE')
+  })
+
+  it('有图片图标时优先渲染图片，不再显示字符', () => {
+    const withImage = mount(SoftwareCard, {
+      props: { entry: { ...entry, icon_image: '/api/catalog/icons/aabbccddeeff0011.png', icon: '鲨' } },
+    })
+    const img = withImage.get('.software__icon-img')
+    expect(img.attributes('src')).toBe('/api/catalog/icons/aabbccddeeff0011.png')
+    expect(withImage.get('.software__icon').text()).not.toContain('鲨')
+    // 没有图片时行为不变
+    const without = mount(SoftwareCard, { props: { entry: { ...entry, icon: '鲨' } } })
+    expect(without.find('.software__icon-img').exists()).toBe(false)
   })
 
   it('点击卡片用新窗口打开，并补全缺失的协议', async () => {

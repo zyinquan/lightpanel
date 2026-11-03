@@ -115,6 +115,8 @@ class ComposeConfig(_Base):
 class CatalogConfig(_Base):
     provider: Literal["yaml", "memory"] = "yaml"
     path: str = "data/catalog.yaml"
+    # 上传的图标图片存放目录
+    icons_dir: str = "data/icons"
     # 首次启动若 path 不存在，从该文件复制一份
     example_file: str | None = None
 

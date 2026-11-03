@@ -24,6 +24,23 @@ async def test_yaml_repository_roundtrip(tmp_path):
     assert entries[0].tags == ["x"]
 
 
+async def test_yaml_repository_roundtrip_keeps_icon_image(tmp_path):
+    # 忘了反序列化 icon_image 的话，上传的图片图标会在下次读取时静默消失
+    repo = YamlCatalogRepository(tmp_path / "catalog.yaml")
+    await repo.add(
+        SoftwareEntry(
+            id="a",
+            name="A",
+            url="https://a.local",
+            icon="🎬",
+            icon_image="/api/catalog/icons/aabbccddeeff0011.png",
+        )
+    )
+    entries = await YamlCatalogRepository(tmp_path / "catalog.yaml").list_entries()
+    assert entries[0].icon_image == "/api/catalog/icons/aabbccddeeff0011.png"
+    assert entries[0].icon == "🎬"
+
+
 async def test_yaml_repository_update_and_remove(tmp_path):
     repo = YamlCatalogRepository(tmp_path / "catalog.yaml")
     await repo.add(SoftwareEntry(id="a", name="A", url=""))

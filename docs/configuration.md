@@ -144,6 +144,7 @@ python -m lightpanel.agent --host 0.0.0.0 --port 9101 \
 | --- | --- | --- |
 | `provider` | `yaml` | `yaml` 持久化到文件 / `memory` 内存（重启丢失） |
 | `path` | `data/catalog.yaml` | YAML 仓库路径 |
+| `icons_dir` | `data/icons` | 上传的图标图片存放目录 |
 | `example_file` | `null` | 若 `path` 不存在，首次启动时从该文件复制一份 |
 
 `catalog.yaml` 结构：
@@ -155,6 +156,7 @@ entries:
     url: http://nas:8096
     description: 家庭影音库
     icon: 🎬
+    icon_image: /api/catalog/icons/a1b2c3d4e5f60718.png
     color: "#ff5c8a"
     category: 影音
     tags: [影音, 自建]

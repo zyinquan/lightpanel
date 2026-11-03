@@ -124,6 +124,7 @@ class YamlCatalogRepository:
                         url=str(row.get("url", "")),
                         description=str(row.get("description", "")),
                         icon=str(row.get("icon", "")),
+                        icon_image=str(row.get("icon_image", "")),
                         color=str(row.get("color", "")),
                         category=str(row.get("category", "")),
                         tags=[str(t) for t in row.get("tags", []) or []],

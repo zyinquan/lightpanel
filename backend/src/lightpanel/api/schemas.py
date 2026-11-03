@@ -209,6 +209,7 @@ class SoftwareEntryIn(BaseModel):
     url: str = ""
     description: str = ""
     icon: str = ""
+    icon_image: str = ""
     color: str = ""
     category: str = ""
     tags: list[str] = Field(default_factory=list)
@@ -224,6 +225,7 @@ class SoftwareEntryIn(BaseModel):
             url=self.url.strip(),
             description=self.description.strip(),
             icon=self.icon.strip(),
+            icon_image=self.icon_image.strip(),
             color=self.color.strip(),
             category=self.category.strip(),
             tags=[t.strip() for t in self.tags],
@@ -238,6 +240,7 @@ class SoftwareEntryOut(_Out):
     url: str
     description: str = ""
     icon: str = ""
+    icon_image: str = ""
     color: str = ""
     category: str = ""
     tags: list[str] = Field(default_factory=list)
@@ -252,6 +255,7 @@ class SoftwareEntryOut(_Out):
             url=entry.url,
             description=entry.description,
             icon=entry.icon,
+            icon_image=entry.icon_image,
             color=entry.color,
             category=entry.category,
             tags=entry.normalized_tags(),
@@ -263,6 +267,12 @@ class SoftwareEntryOut(_Out):
 class TagOut(_Out):
     name: str
     count: int
+
+
+class IconOut(_Out):
+    """上传图标后返回的引用地址。"""
+
+    url: str
 
 
 class CatalogPageOut(_Out):

@@ -94,6 +94,8 @@ class SoftwareEntry:
     url: str
     description: str = ""
     icon: str = ""
+    # 图片图标的引用（站内路径如 /api/catalog/icons/xxx.png，留空则回落到 icon 字符）
+    icon_image: str = ""
     color: str = ""
     category: str = ""
     tags: list[str] = field(default_factory=list)

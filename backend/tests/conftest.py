@@ -90,7 +90,7 @@ def test_config(tmp_path) -> AppConfig:
             "env": "dev",
             "metrics": {"provider": "fake", "cache_ttl": 0, "history_size": 10},
             "docker": {"mode": "fake"},
-            "catalog": {"provider": "memory"},
+            "catalog": {"provider": "memory", "icons_dir": str(tmp_path / "icons")},
             "commands": {
                 "extra_file": str(tmp_path / "missing-commands.yaml"),
                 "executor": "fake",

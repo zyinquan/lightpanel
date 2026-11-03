@@ -11,6 +11,7 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .adapters.catalog.icon_store import IconStore
 from .adapters.catalog.memory_repository import InMemoryCatalogRepository
 from .adapters.catalog.yaml_repository import YamlCatalogRepository
 from .adapters.docker.agent_compose import AgentComposeBackend
@@ -59,6 +60,7 @@ class AppContainer:
     container_engine: ContainerEngine
     command_executor: CommandExecutor
     catalog_repository: CatalogRepository
+    icon_store: IconStore
     extra_closables: list = field(default_factory=list)
 
     async def aclose(self) -> None:
@@ -78,6 +80,7 @@ def build_container(config: AppConfig) -> AppContainer:
     """Assemble the object graph from configuration."""
     metrics_provider = _build_metrics_provider(config)
     catalog_repository = _build_catalog_repository(config)
+    icon_store = IconStore(config.catalog.icons_dir)
     container_engine = _build_container_engine(config)
     executor = _build_executor(config)
     stack_engine = ComposeStackEngine(
@@ -102,7 +105,7 @@ def build_container(config: AppConfig) -> AppContainer:
     return AppContainer(
         config=config,
         system=SystemService(metrics_provider, config.metrics),
-        catalog=CatalogService(catalog_repository),
+        catalog=CatalogService(catalog_repository, icon_store=icon_store),
         containers=ContainerService(container_engine),
         stacks=StackService(stack_engine),
         commands=CommandService(container_engine, stack_engine, executor, policy, definitions),
@@ -111,6 +114,7 @@ def build_container(config: AppConfig) -> AppContainer:
         container_engine=container_engine,
         command_executor=executor,
         catalog_repository=catalog_repository,
+        icon_store=icon_store,
         extra_closables=closables,
     )
 

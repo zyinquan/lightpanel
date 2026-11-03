@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Request, status
+from fastapi.responses import FileResponse
 
-from ..dependencies import CatalogDep
+from ...domain.errors import NotFoundError
+from ..dependencies import CatalogDep, IconDep
 from ..schemas import (
     CatalogPageOut,
+    IconOut,
     ReorderIn,
     SoftwareEntryIn,
     SoftwareEntryOut,
@@ -92,3 +95,32 @@ async def set_tags(entry_id: str, payload: TagsUpdateIn, service: CatalogDep):
 async def reorder(payload: ReorderIn, service: CatalogDep):
     entries = await service.reorder(payload.ids)
     return [SoftwareEntryOut.from_domain(e) for e in entries]
+
+
+@router.post(
+    "/icons", response_model=IconOut, status_code=status.HTTP_201_CREATED, summary="上传图标图片"
+)
+async def upload_icon(request: Request, store: IconDep):
+    """图标以原始字节流上传（Content-Type: image/*），成功后返回站内引用地址。
+
+    不用 multipart：单文件上传用原始 body 更省一个 python-multipart 依赖。
+    """
+    data = await request.body()
+    url = await store.save(data)
+    prefix = request.app.state.container.config.server.api_prefix.rstrip("/")
+    return IconOut(url=url.replace("/api/catalog", f"{prefix}/catalog", 1))
+
+
+@router.get("/icons/{name}", summary="读取图标图片")
+async def get_icon(name: str, store: IconDep):
+    path = store.resolve(name)
+    if path is None:
+        raise NotFoundError(f"Icon not found: {name}")
+    # 文件名是随机哈希，内容一旦更新 URL 就会变，可以放心长缓存。
+    return FileResponse(path, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
+@router.delete("/icons/{name}", status_code=status.HTTP_204_NO_CONTENT, summary="删除图标图片")
+async def delete_icon(name: str, store: IconDep):
+    await store.delete(f"/api/catalog/icons/{name}")
+    return None

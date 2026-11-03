@@ -86,6 +86,8 @@ export interface SoftwareEntry {
   url: string
   description: string
   icon: string
+  /** 图片图标（站内路径）；有值时优先于 icon 字符展示 */
+  icon_image: string
   color: string
   category: string
   tags: string[]

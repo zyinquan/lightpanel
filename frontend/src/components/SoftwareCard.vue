@@ -12,7 +12,8 @@ const props = defineProps<{
 const emit = defineEmits<{ tag: [string]; edit: [SoftwareEntry]; remove: [SoftwareEntry] }>()
 
 const accent = computed(() => props.entry.color || colorFromString(props.entry.name))
-/** 图标字符优先，留空才回落到名称首字母。 */
+/** 图片图标优先；没有图片才用图标字符，连字符都没有就回落到首字母。 */
+const hasImage = computed(() => Boolean(props.entry.icon_image))
 const mark = computed(() => props.entry.icon?.trim() || initials(props.entry.name))
 const href = computed(() => normalizeUrl(props.entry.url))
 const isActive = (tag: string) => props.activeTags?.includes(tag) ?? false
@@ -61,7 +62,16 @@ async function copyText(text: string): Promise<boolean> {
       :title="href || entry.name"
       @click="openEntry"
     >
-      <span class="software__icon" :style="{ background: accent }">{{ mark }}</span>
+      <span class="software__icon" :style="hasImage ? { background: 'transparent' } : { background: accent }">
+        <img
+          v-if="hasImage"
+          class="software__icon-img"
+          :src="entry.icon_image"
+          alt=""
+          loading="lazy"
+        />
+        <template v-else>{{ mark }}</template>
+      </span>
       <span class="software__main">
         <span class="software__name truncate">{{ entry.name }}</span>
         <span v-if="entry.description" class="software__desc truncate">{{ entry.description }}</span>
@@ -135,6 +145,13 @@ async function copyText(text: string): Promise<boolean> {
   font-weight: 600;
   font-size: 15px;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.software__icon-img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
 }
 
 .software__main {

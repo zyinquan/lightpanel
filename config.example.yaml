@@ -66,6 +66,8 @@ compose:
 catalog:
   provider: yaml          # yaml | memory
   path: data/catalog.yaml
+  # 软件卡片的图片图标上传后存放的目录
+  icons_dir: data/icons
   # 首次启动若 path 不存在，从这个文件复制一份；容器部署指向 /app/data-examples/catalog.example.yaml
   example_file: ""
 

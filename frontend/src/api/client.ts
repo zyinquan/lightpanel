@@ -181,6 +181,15 @@ export class ApiClient {
     })
   }
 
+  /** 上传图标图片（原始字节流），返回站内引用地址。 */
+  uploadIcon(file: File): Promise<{ url: string }> {
+    return this.request('/catalog/icons', {
+      method: 'POST',
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body: file,
+    })
+  }
+
   // -- containers ------------------------------------------------------------
   containers(params: { includeStopped?: boolean; search?: string; project?: string; state?: string } = {}): Promise<ContainerInfo[]> {
     return this.request('/containers', {
