@@ -16,6 +16,7 @@ from ..domain.models import (
     CommandDefinition,
     CommandResult,
     ContainerInfo,
+    ContainerUsage,
     CpuMetrics,
     DiskMetrics,
     HostInfo,
@@ -329,6 +330,31 @@ class ContainerOut(_Out):
         )
 
 
+class ContainerUsageOut(_Out):
+    container_id: str
+    cpu_percent: float = 0.0
+    memory_bytes: int = 0
+    memory_limit_bytes: int = 0
+    memory_percent: float = 0.0
+
+    @classmethod
+    def from_domain(cls, usage: ContainerUsage) -> ContainerUsageOut:
+        return cls(
+            container_id=usage.container_id,
+            cpu_percent=usage.cpu_percent,
+            memory_bytes=usage.memory_bytes,
+            memory_limit_bytes=usage.memory_limit_bytes,
+            memory_percent=usage.memory_percent,
+        )
+
+
+class ContainerUsagePageOut(_Out):
+    """按容器 ID 索引的实时占用；前端自行按 id 匹配到卡片 / 编排。"""
+
+    items: list[ContainerUsageOut] = Field(default_factory=list)
+    sampled_at: datetime | None = None
+
+
 class ContainerActionIn(BaseModel):
     timeout: int | None = Field(default=None, ge=0, le=600)
 
@@ -527,6 +553,8 @@ __all__ = [
     "ContainerActionIn",
     "ContainerActionOut",
     "ContainerOut",
+    "ContainerUsageOut",
+    "ContainerUsagePageOut",
     "EngineStatusOut",
     "ErrorOut",
     "HealthOut",

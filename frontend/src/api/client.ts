@@ -11,6 +11,7 @@ import type {
   CommandTarget,
   ContainerActionResult,
   ContainerInfo,
+  ContainerUsagePage,
   EngineStatus,
   HealthStatus,
   LogsPayload,
@@ -190,6 +191,11 @@ export class ApiClient {
         state: params.state ?? '',
       },
     })
+  }
+
+  /** 运行中容器的 CPU / 内存快照（服务端缓存 5s）。 */
+  containerUsage(): Promise<ContainerUsagePage> {
+    return this.request('/containers/usage')
   }
 
   container(id: string): Promise<ContainerInfo> {

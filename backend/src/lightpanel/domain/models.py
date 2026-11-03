@@ -205,6 +205,26 @@ class StackStatus(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class ContainerUsage:
+    """One container's resource use, from the engine's stats endpoint.
+
+    ``cpu_percent`` is normalised to the whole machine (100% == one full core's
+    worth per logical CPU), matching what ``docker stats`` prints.
+    """
+
+    container_id: str
+    cpu_percent: float = 0.0
+    memory_bytes: int = 0
+    memory_limit_bytes: int = 0
+
+    @property
+    def memory_percent(self) -> float:
+        if self.memory_limit_bytes <= 0:
+            return 0.0
+        return round(self.memory_bytes / self.memory_limit_bytes * 100, 2)
+
+
+@dataclass(frozen=True, slots=True)
 class StackInfo:
     """A Docker Compose project, derived from compose labels on containers."""
 

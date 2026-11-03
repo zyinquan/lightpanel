@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Query
 
 from ...domain.errors import ValidationError
@@ -12,6 +14,8 @@ from ..schemas import (
     ContainerActionIn,
     ContainerActionOut,
     ContainerOut,
+    ContainerUsageOut,
+    ContainerUsagePageOut,
     EngineStatusOut,
     LogsOut,
 )
@@ -38,6 +42,19 @@ async def list_containers(
         include_stopped=include_stopped, search=search, project=project, state=state
     )
     return [ContainerOut.from_domain(c) for c in containers]
+
+
+@router.get(
+    "/usage",
+    response_model=ContainerUsagePageOut,
+    summary="运行中容器的 CPU / 内存实时占用",
+)
+async def container_usage(service: ContainersDep):
+    usage = await service.usage_map()
+    return ContainerUsagePageOut(
+        items=[ContainerUsageOut.from_domain(item) for item in usage.values()],
+        sampled_at=datetime.now(UTC),
+    )
 
 
 @router.get("/{container_id}", response_model=ContainerOut, summary="容器详情")

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { api } from '@/api/client'
-import type { CommandDefinition, ContainerInfo } from '@/api/types'
+import type { CommandDefinition, ContainerInfo, ContainerUsage } from '@/api/types'
 import { usePolling } from '@/composables/usePolling'
 import { errorMessage, pushToast } from '@/composables/useToast'
 import ContainerCard from '@/components/ContainerCard.vue'
@@ -20,6 +20,13 @@ const containers = usePolling(
 )
 const commands = usePolling(() => api.commands('container'), { interval: 30000 })
 const engine = usePolling(() => api.dockerStatus(), { interval: 15000 })
+// 占用单独拉：stats 要等 daemon 采样一个周期，不能拖慢容器列表本身
+const usage = usePolling(() => api.containerUsage(), { interval: 8000 })
+const usageById = computed(() => {
+  const map: Record<string, ContainerUsage> = {}
+  for (const item of usage.data.value?.items ?? []) map[item.container_id] = item
+  return map
+})
 
 const customCommands = computed(() => (commands.data.value ?? []).filter((c) => !c.builtin))
 const busyIds = ref<Record<string, boolean>>({})
@@ -134,6 +141,7 @@ function requestAction(container: ContainerInfo, action: string) {
         v-for="container in containers.data.value ?? []"
         :key="container.id"
         :container="container"
+        :usage="usageById[container.id]"
         :commands="customCommands"
         :busy="busyIds[container.id]"
         @action="requestAction(container, $event)"

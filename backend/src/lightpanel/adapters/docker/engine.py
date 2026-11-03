@@ -14,7 +14,7 @@ import httpx
 
 from ...config import DockerConfig
 from ...domain.errors import EngineUnavailableError, NotFoundError
-from ...domain.models import ContainerInfo, ContainerState, PortBinding
+from ...domain.models import ContainerInfo, ContainerState, ContainerUsage, PortBinding
 
 # 容器名/ID 只允许 Docker 认可的字符；其它输入一律拒绝，避免拼进 URL 后打到
 # 别的 Docker API 端点（例如 "../../version" 之类）。
@@ -178,6 +178,21 @@ class DockerApiContainerEngine:
             )
         return _decode_log_stream(response.content)
 
+    async def usage(self, container_id: str) -> ContainerUsage:
+        """单次采样容器 CPU / 内存。
+
+        ``stream=false`` 会让 daemon 等一个采样周期再返回，这样
+        ``precpu_stats`` 才有效；改用 ``one-shot=true`` 虽然快，但
+        ``system_cpu_usage`` 差值会退化成整机累计值，算出的百分比恒接近 0。
+        """
+        reference = _safe_reference(container_id)
+        payload = await self._get(
+            f"/containers/{reference}/stats", params={"stream": "false"}
+        )
+        if not isinstance(payload, dict):
+            raise EngineUnavailableError(f"No stats payload for container {container_id}")
+        return _parse_usage(container_id, payload)
+
     # -- helpers ----------------------------------------------------------- #
     async def _get(self, path: str, params: dict[str, str] | None = None) -> Any:
         client = await self.client()
@@ -270,6 +285,47 @@ class DockerApiContainerEngine:
                     }
                 )
         return ports
+
+
+def _parse_usage(container_id: str, payload: dict[str, Any]) -> ContainerUsage:
+    """把 ``/containers/{id}/stats`` 的原始返回折算成百分比。
+
+    - CPU：按 ``docker stats`` 的口径归一化到整机（除以 system delta 再乘
+      在线核数），单核跑满 = 100%。
+    - 内存：cgroup v1 要减掉 page cache（``stats.cache``），v2 是
+      ``stats.inactive_file``；否则「刚拷完大文件」会显示占用暴涨。
+    """
+    cpu = payload.get("cpu_stats") or {}
+    pre = payload.get("precpu_stats") or {}
+    cpu_total = int((cpu.get("cpu_usage") or {}).get("total_usage") or 0)
+    pre_total = int((pre.get("cpu_usage") or {}).get("total_usage") or 0)
+    system_total = int(cpu.get("system_cpu_usage") or 0)
+    pre_system = int(pre.get("system_cpu_usage") or 0)
+
+    online = int(cpu.get("online_cpus") or 0)
+    if online <= 0:
+        online = len((cpu.get("cpu_usage") or {}).get("percpu_usage") or []) or 1
+
+    cpu_percent = 0.0
+    cpu_delta = cpu_total - pre_total
+    system_delta = system_total - pre_system
+    if cpu_delta > 0 and system_delta > 0:
+        cpu_percent = round(cpu_delta / system_delta * online * 100, 2)
+
+    memory = payload.get("memory_stats") or {}
+    stats = memory.get("stats") or {}
+    usage = int(memory.get("usage") or 0)
+    reclaimable = int(stats.get("total_inactive_file") or stats.get("inactive_file") or 0)
+    if not reclaimable:
+        reclaimable = int(stats.get("cache") or 0)
+    memory_bytes = max(usage - reclaimable, 0)
+
+    return ContainerUsage(
+        container_id=container_id,
+        cpu_percent=cpu_percent,
+        memory_bytes=memory_bytes,
+        memory_limit_bytes=int(memory.get("limit") or 0),
+    )
 
 
 def _decode_log_stream(payload: bytes) -> str:

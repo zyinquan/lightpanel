@@ -171,3 +171,7 @@ def test_change_password_rejected_when_auth_disabled(client):
     )
     assert response.status_code == 400
     assert "未启用鉴权" in response.json()["message"]
+
+
+def test_usage_endpoint_is_under_auth(secured_client):
+    assert secured_client.get("/api/containers/usage").status_code == 401

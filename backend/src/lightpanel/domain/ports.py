@@ -14,6 +14,7 @@ from typing import Any, Protocol, runtime_checkable
 from .models import (
     CommandResult,
     ContainerInfo,
+    ContainerUsage,
     SoftwareEntry,
     StackInfo,
     SystemSnapshot,
@@ -85,6 +86,10 @@ class ContainerEngine(Protocol):
         ...
 
     async def logs(self, container_id: str, *, tail: int = 200) -> str:
+        ...
+
+    async def usage(self, container_id: str) -> ContainerUsage:
+        """Current CPU / memory of one container (engine stats API)."""
         ...
 
 

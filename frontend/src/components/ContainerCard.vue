@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { CommandDefinition, ContainerInfo } from '@/api/types'
-import { formatDateTime, stateColor, stateLabel } from '@/utils/format'
+import type { CommandDefinition, ContainerInfo, ContainerUsage } from '@/api/types'
+import { formatBytes, formatDateTime, stateColor, stateLabel } from '@/utils/format'
 
 const props = defineProps<{
   container: ContainerInfo
+  usage?: ContainerUsage | null
   commands?: CommandDefinition[]
   busy?: boolean
 }>()
@@ -19,6 +20,8 @@ const isRunning = computed(() => props.container.state.toLowerCase() === 'runnin
 const isPaused = computed(() => props.container.state.toLowerCase() === 'paused')
 const color = computed(() => stateColor(props.container.state))
 const created = computed(() => formatDateTime(props.container.created_at))
+/** 只有运行中的容器才有采样；停止的显示「—」而不是假 0%。 */
+const showsUsage = computed(() => isRunning.value && !!props.usage)
 const subtitle = computed(() => {
   const parts = [props.container.image]
   if (props.container.compose_project) {
@@ -69,6 +72,21 @@ const ACTION_LABEL: Record<string, string> = {
       <span class="dim">{{ created }}</span>
       <span v-if="container.ports.length" class="container__ports">
         <span v-for="port in container.ports" :key="port" class="badge mono">{{ port }}</span>
+      </span>
+    </div>
+
+    <div v-if="showsUsage" class="container__usage">
+      <span class="usage-chip" title="CPU 占用（相对整机）">
+        <span class="usage-chip__label">CPU</span>
+        <strong class="mono">{{ usage!.cpu_percent.toFixed(1) }}%</strong>
+      </span>
+      <span
+        class="usage-chip"
+        :title="`内存 ${formatBytes(usage!.memory_bytes)} / 上限 ${formatBytes(usage!.memory_limit_bytes)}`"
+      >
+        <span class="usage-chip__label">内存</span>
+        <strong class="mono">{{ formatBytes(usage!.memory_bytes) }}</strong>
+        <span class="dim mono">{{ usage!.memory_percent.toFixed(1) }}%</span>
       </span>
     </div>
 
@@ -148,6 +166,13 @@ const ACTION_LABEL: Record<string, string> = {
   gap: 7px;
   flex-wrap: wrap;
   font-size: 11.5px;
+}
+
+.container__usage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: -2px;
 }
 
 .container__ports {

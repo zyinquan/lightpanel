@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { api } from '@/api/client'
-import type { CommandDefinition, StackInfo } from '@/api/types'
+import type { CommandDefinition, ContainerUsage, StackInfo } from '@/api/types'
 import { usePolling } from '@/composables/usePolling'
 import { errorMessage, pushToast } from '@/composables/useToast'
 import StackCard from '@/components/StackCard.vue'
@@ -11,6 +11,13 @@ import EmptyState from '@/components/EmptyState.vue'
 const search = ref('')
 const stacks = usePolling(() => api.stacks(), { interval: 8000 })
 const commands = usePolling(() => api.commands('stack'), { interval: 30000 })
+// 容器占用按 ID 索引，编排卡的整栈数字由各容器求和得来
+const usage = usePolling(() => api.containerUsage(), { interval: 8000 })
+const usageById = computed(() => {
+  const map: Record<string, ContainerUsage> = {}
+  for (const item of usage.data.value?.items ?? []) map[item.container_id] = item
+  return map
+})
 
 const filtered = computed(() => {
   const list = stacks.data.value ?? []
@@ -72,6 +79,7 @@ async function act(stack: StackInfo, action: string) {
         v-for="stack in filtered"
         :key="stack.name"
         :stack="stack"
+        :usage-by-id="usageById"
         :commands="customCommands"
         :busy="busy[stack.name]"
         :expanded="expanded[stack.name]"

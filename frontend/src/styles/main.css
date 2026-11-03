@@ -297,6 +297,28 @@ textarea {
   background: var(--text-dim);
 }
 
+/* 容器 / 编排的资源占用标签：CPU 与内存成对出现 */
+.usage-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-hover);
+  font-size: 11.5px;
+}
+
+.usage-chip strong {
+  font-weight: 600;
+}
+
+.usage-chip__label {
+  color: var(--text-dim);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+
 /* ------------------------------------------------------------------ misc */
 .section-title {
   display: flex;

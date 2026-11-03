@@ -6,7 +6,7 @@ import copy
 from collections.abc import Sequence
 
 from ...domain.errors import NotFoundError
-from ...domain.models import ContainerInfo, ContainerState
+from ...domain.models import ContainerInfo, ContainerState, ContainerUsage
 
 
 class FakeContainerEngine:
@@ -66,6 +66,19 @@ class FakeContainerEngine:
         container = self._require(container_id)
         self.log_calls.append((container_id, tail))
         return f"fake logs for {container.name} (tail={tail})\nline 1\nline 2"
+
+    async def usage(self, container_id: str) -> ContainerUsage:
+        """Deterministic numbers so UI tests and ``docker.mode: fake`` are stable."""
+        container = self._require(container_id)
+        if not container.state.is_active:
+            raise NotFoundError(f"Container {container_id} is not running")
+        seed = sum(ord(ch) for ch in container.name)
+        return ContainerUsage(
+            container_id=container_id,
+            cpu_percent=round((seed % 40) / 4, 2),  # 0.00 ~ 9.75
+            memory_bytes=(seed % 200 + 16) * 1024 * 1024,
+            memory_limit_bytes=2 * 1024 * 1024 * 1024,
+        )
 
     # -- internals --------------------------------------------------------- #
     def _require(self, container_id: str) -> ContainerInfo:

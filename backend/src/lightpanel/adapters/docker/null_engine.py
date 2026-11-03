@@ -9,7 +9,7 @@ inside a container). Keep them distinct so the fix is obvious.
 from __future__ import annotations
 
 from ...domain.errors import EngineUnavailableError
-from ...domain.models import ContainerInfo
+from ...domain.models import ContainerInfo, ContainerUsage
 
 DISABLED_REASON = "Docker support is disabled (docker.enabled = false)"
 NO_ENDPOINT_REASON = (
@@ -57,3 +57,7 @@ class NullContainerEngine:
     async def logs(self, container_id: str, *, tail: int = 200) -> str:
         self._fail()
         return ""  # pragma: no cover
+
+    async def usage(self, container_id: str) -> ContainerUsage:
+        self._fail()
+        raise AssertionError("unreachable")  # pragma: no cover

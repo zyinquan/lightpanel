@@ -118,6 +118,19 @@ export interface ContainerInfo {
   compose_service: string
 }
 
+export interface ContainerUsage {
+  container_id: string
+  cpu_percent: number
+  memory_bytes: number
+  memory_limit_bytes: number
+  memory_percent: number
+}
+
+export interface ContainerUsagePage {
+  items: ContainerUsage[]
+  sampled_at: string | null
+}
+
 export interface StackInfo {
   name: string
   config_files: string
