@@ -39,11 +39,26 @@ class SPAStaticFiles(StaticFiles):
 
     async def get_response(self, path: str, scope):
         try:
-            return await super().get_response(path, scope)
+            response = await super().get_response(path, scope)
         except StarletteHTTPException as exc:
             if exc.status_code != 404 or not self._should_fallback(path):
                 raise
-            return await super().get_response("index.html", scope)
+            response = await super().get_response("index.html", scope)
+        self._apply_cache_headers(path, response)
+        return response
+
+    def _apply_cache_headers(self, path: str, response) -> None:
+        """入口 HTML 必须每次回源验证，带哈希的产物可以长期缓存。
+
+        ``index.html`` 里引用的 js 文件名带内容哈希，升级后旧文件就不再存在。
+        浏览器若拿缓存的旧 HTML，会去请求已被删掉的旧 js，页面直接白屏——
+        所以这里对 HTML 强制 ``no-cache``，只让 ``assets/`` 走长缓存。
+        """
+        cleaned = "/" + path.replace("\\", "/").lstrip("/")
+        if cleaned.startswith("/assets/"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            response.headers["Cache-Control"] = "no-cache"
 
     def _should_fallback(self, path: str) -> bool:
         # Windows 下 StaticFiles 会把分隔符换成反斜杠，先归一化再判断

@@ -46,3 +46,17 @@ def test_api_prefix_is_not_spa_fallback(spa_app: FastAPI) -> None:
     client = TestClient(spa_app)
     assert client.get("/api/unknown").status_code == 404
     assert client.get("/api").status_code == 404
+
+
+def test_index_html_is_never_cached(spa_app: FastAPI) -> None:
+    # 升级后旧 index.html 会指向已删除的旧 js，必须让浏览器每次回源
+    client = TestClient(spa_app)
+    for path in ("/", "/containers"):
+        response = client.get(path)
+        assert response.headers["cache-control"] == "no-cache", path
+
+
+def test_hashed_assets_are_cached_long(spa_app: FastAPI) -> None:
+    response = TestClient(spa_app).get("/assets/app.js")
+    assert "immutable" in response.headers["cache-control"]
+    assert "max-age=31536000" in response.headers["cache-control"]
